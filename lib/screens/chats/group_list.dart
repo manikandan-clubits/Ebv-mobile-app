@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:iconsax/iconsax.dart';
 import '../../models/group_model.dart';
 import '../../provider/chat_provider.dart';
 import 'create_group.dart';
@@ -329,6 +330,66 @@ class _GroupListScreenState extends ConsumerState<GroupListScreen> {
               ],
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value.toLowerCase();
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search Group...',
+                  hintStyle: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 16,
+                  ),
+                  border: InputBorder.none,
+                  prefixIcon: Container(
+                    padding: const EdgeInsets.all(16),
+                    child: Icon(
+                      Iconsax.search_normal,
+                      color: Colors.grey.shade500,
+                      size: 20,
+                    ),
+                  ),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                    icon: Icon(
+                      Iconsax.close_circle,
+                      color: Colors.grey.shade500,
+                      size: 20,
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
+                  )
+                      : null,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 0,
+                    vertical: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           const SizedBox(height: 8),
           Expanded(
             child: RefreshIndicator(

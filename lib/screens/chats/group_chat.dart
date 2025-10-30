@@ -128,8 +128,6 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   }
 
   Widget _buildMessageBubble(GroupMessage message, bool isMe) {
-
-
     List<String>? getAttachments(GroupMessage msg) {
       if (msg.uploadedUrls.isNotEmpty) {
         return List<String>.from(msg.uploadedUrls);
@@ -153,107 +151,140 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
     final attachments = getAttachments(message);
     final hasAttachments = attachments != null && attachments.isNotEmpty;
-
-    // Safe author handling
     final author = message.author ?? 'Unknown User';
     final authorInitial = author.isNotEmpty ? author.substring(0, 1).toUpperCase() : '?';
-
-    // Safe content handling
     final content = message.content ?? '';
     final hasContent = content.isNotEmpty;
-
-    // Safe timestamp handling
     final sentAt = message.sentAt ?? DateTime.now();
     final formattedTime = _formatMessageTime(sentAt);
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
       child: Row(
         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.grey.shade300,
-              child: Text(
-                authorInitial,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+            Container(
+              width: 36,
+              height: 36,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF6a11cb), Color(0xFF2575fc)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  authorInitial,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isMe ? Colors.deepPurple : Colors.grey.shade200,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: isMe ? const Radius.circular(16) : const Radius.circular(4),
-                  bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(16),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        author,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isMe ? Colors.white70 : Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  if (hasContent)
-                    Text(
-                      content,
+            child: Column(
+              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                if (!isMe)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4, left: 12),
+                    child: Text(
+                      author,
                       style: TextStyle(
-                        color: isMe ? Colors.white : Colors.black87,
-                        fontSize: 16,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
                       ),
                     ),
-
-                  if (hasAttachments) ...[
-                    if (hasContent) const SizedBox(height: 8),
-                    Column(
-                      children: attachments.map((url) {
-                        if (isImageUrl(url)) {
-                          return _buildImageAttachment(url);
-                        } else {
-                          return _buildFileAttachment(url);
-                        }
-                      }).toList(),
+                  ),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isMe ? const Color(0xFF6a11cb) : Colors.white,
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(20),
+                      topRight: const Radius.circular(20),
+                      bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
+                      bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
                     ),
-                  ],
-
-                  const SizedBox(height: 4),
-                  Text(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (hasContent)
+                        Text(
+                          content,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black87,
+                            fontSize: 16,
+                            height: 1.4,
+                          ),
+                        ),
+                      if (hasAttachments) ...[
+                        if (hasContent) const SizedBox(height: 12),
+                        Column(
+                          children: attachments!.map((url) {
+                            if (isImageUrl(url)) {
+                              return _buildImageAttachment(url);
+                            } else {
+                              return _buildFileAttachment(url);
+                            }
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, left: 12, right: 12),
+                  child: Text(
                     formattedTime,
                     style: TextStyle(
-                      fontSize: 10,
-                      color: isMe ? Colors.white70 : Colors.grey.shade500,
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+          if (isMe) ...[
+            const SizedBox(width: 8),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  'Me',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1239,67 +1270,125 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       body: Column(
         children: [
           Container(
-            width: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF29BFFF), Color(0xFF8548D0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+            padding: const EdgeInsets.only(
+              top: 60,
+              bottom: 16,
+              left: 16,
+              right: 16,
             ),
-            padding: const EdgeInsets.only(top: 50, bottom: 16, left: 16, right: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(context),
                 ),
                 const SizedBox(width: 8),
-                // Group Profile
+                // User Avatar
                 GestureDetector(
-                  onTap: _showGroupMembers,
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    child: Text(
-                      widget.group.groupName.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                  onTap: (){
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GroupDetailsScreen(group: widget.group),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF6a11cb), Color(0xFF2575fc)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.group.groupName.isNotEmpty
+                            ? widget.group.groupName[0].toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: _showGroupMembers,
-                  child: Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.group.groupName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.group.groupName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
                         ),
-                        Text(
-                          '${chatState.groupMembers.length} members',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Iconsax.call,
+                      size: 20,
+                      color: Colors.black87,
                     ),
                   ),
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Iconsax.video,
+                      size: 20,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  onPressed: () {},
                 ),
               ],
             ),
           ),
+
 
           // Chat Messages
           Expanded(
