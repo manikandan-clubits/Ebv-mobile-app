@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:ebv/provider/patient_provider.dart';
 import 'package:ebv/screens/patient/Profile.dart';
 import 'package:ebv/screens/chats/combined_chat.dart';
@@ -35,6 +37,9 @@ class _HomeState extends ConsumerState<Home> {
   @override
   void initState() {
     super.initState();
+
+    log("inithome");
+    // Initialize data
     Future.microtask(() {
       ref.read(homeProvider.notifier).readUser();
       ref.read(homeProvider.notifier).getFilterAppointments();
@@ -43,6 +48,18 @@ class _HomeState extends ConsumerState<Home> {
       ref.read(patientProvider.notifier).getEbvPatients(context);
       ref.read(patientProvider.notifier).getPatientsCallHistory(context);
     });
+
+    // Schedule auth check after build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAuth();
+    });
+  }
+
+  void _initializeAuth() {
+    final authState = ref.read(authStateProvider); // Use read instead of watch
+    if (!authState.isTokenVerified && !authState.isLoading) {
+      ref.read(authStateProvider.notifier).initializeAuth(context);
+    }
   }
 
   void _openDrawer() {
@@ -51,10 +68,10 @@ class _HomeState extends ConsumerState<Home> {
 
   @override
   Widget build(BuildContext context) {
-
     final state = ref.watch(homeProvider);
     final screenWidth = MediaQuery.of(context).size.width;
 
+    // Auth state listener - moved to build method
     ref.listen<AuthState>(authStateProvider, (previous, current) {
       if (!current.isTokenVerified && !current.isLoading) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,16 +83,6 @@ class _HomeState extends ConsumerState<Home> {
       }
     });
 
-    final authState = ref.watch(authStateProvider);
-
-    // Initial verification on first build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!authState.isTokenVerified && !authState.isLoading) {
-        ref.read(authStateProvider.notifier).initializeAuth(context);
-      }
-    });
-
-
     return WillPopScope(
       onWillPop: () async {
         final shouldExit = await showExitConfirmationDialog(context);
@@ -84,7 +91,7 @@ class _HomeState extends ConsumerState<Home> {
       child: SafeArea(
         child: Scaffold(
           floatingActionButton: FloatingActionButton(
-            backgroundColor:Colors.transparent,
+            backgroundColor: Colors.transparent,
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => CombinedChatScreen()));
             },
@@ -115,10 +122,9 @@ class _HomeState extends ConsumerState<Home> {
           body: SingleChildScrollView(
             child: Column(
               children: [
-
                 _buildHeader(state, context),
-                state.todaysappointmentList!.isNotEmpty?
-                _buildAppointmentsAlert(context):Container(),
+                state.todaysappointmentList!.isNotEmpty ?
+                _buildAppointmentsAlert(context) : Container(),
                 _buildQuickActionsHeader(),
                 _buildMenuGrid(ref, context, screenWidth),
                 SizedBox(height: 20),
@@ -130,6 +136,7 @@ class _HomeState extends ConsumerState<Home> {
     );
   }
 
+  // Rest of your methods remain the same...
   Widget _buildAppointmentsAlert(BuildContext context) {
     return GestureDetector(
       onTap: () {
@@ -229,7 +236,6 @@ class _HomeState extends ConsumerState<Home> {
                     'assets/images/dentiverify-logo.png',
                     height: 40,
                     width: 160,
-                    // color: Colors.white,
                   ),
                   SizedBox(height: 10),
                   Text(
@@ -406,16 +412,6 @@ class _HomeState extends ConsumerState<Home> {
               ],
             ),
           ),
-
-          // // Logo
-          // Padding(
-          //   padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          //   child: Image.asset(
-          //     'assets/images/dentiverify-logo.png',
-          //     height: 60,
-          //     color: Colors.white,
-          //   ),
-          // ),
 
           // Profile Card
           Container(
@@ -596,14 +592,13 @@ class _HomeState extends ConsumerState<Home> {
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(
                     color: baseColor.withOpacity(0.6),
-                    width: 2.5, // Even thicker border
+                    width: 2.5,
                   ),
                 ),
                 child: Padding(
                   padding: EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      // Icon with background
                       Container(
                         width: 30,
                         height: 30,
@@ -621,38 +616,19 @@ class _HomeState extends ConsumerState<Home> {
                           size: 22,
                         ),
                       ),
-
                       SizedBox(width: 10),
-
-                      // Text
                       Expanded(
                         child: Text(
                           '${menu['menu']}',
                           style: TextStyle(
                             color: Colors.black,
                             fontSize: 15,
-                            fontWeight: FontWeight.w700, // Bolder
-                            // letterSpacing: 0.3,
+                            fontWeight: FontWeight.w700,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-
-                      // Arrow indicator
-                      // Container(
-                      //   width: 24,
-                      //   height: 24,
-                      //   decoration: BoxDecoration(
-                      //     color: Colors.white.withOpacity(0.2),
-                      //     shape: BoxShape.circle,
-                      //   ),
-                      //   child: Icon(
-                      //     Icons.arrow_forward,
-                      //     color: Colors.white,
-                      //     size: 14,
-                      //   ),
-                      // ),
                     ],
                   ),
                 ),
