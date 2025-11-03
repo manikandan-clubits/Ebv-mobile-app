@@ -843,11 +843,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: Colors.white,
         border: Border(
-          top: BorderSide(color: Colors.grey.shade200),
-          bottom: BorderSide(color: Colors.grey.shade200),
+          top: BorderSide(color: Colors.grey.shade200, width: 1),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,18 +861,25 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           // Header
           Row(
             children: [
-              Icon(
-                Icons.attach_file,
-                size: 18,
-                color: Colors.grey.shade600,
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  Icons.attachment_rounded,
+                  size: 16,
+                  color: Colors.blue.shade700,
+                ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
-                'Attachments (${_selectedFiles.length})',
-                style: TextStyle(
+                '${_selectedFiles.length} file${_selectedFiles.length > 1 ? 's' : ''} selected',
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade700,
+                  color: Colors.black87,
                 ),
               ),
               const Spacer(),
@@ -879,15 +892,15 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
-                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(
-                      Icons.close,
+                    child: const Icon(
+                      Icons.close_rounded,
                       size: 16,
-                      color: Colors.grey.shade600,
+                      color: Colors.grey,
                     ),
                   ),
                 ),
@@ -897,7 +910,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
           // Files List
           SizedBox(
-            height: 90,
+            height: 80,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: _selectedFiles.length,
@@ -908,8 +921,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                 final fileSize = _formatFileSize(file.size);
 
                 return Container(
-                  margin: const EdgeInsets.only(right: 12),
-                  width: 120,
+                  margin: EdgeInsets.only(right: index == _selectedFiles.length - 1 ? 0 : 8),
+                  width: 100,
                   child: Stack(
                     children: [
                       // File Card
@@ -917,82 +930,49 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Colors.grey.shade50,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: chatState.isUpload ? Colors.blue.shade300 : Colors.green.shade300,
-                            width: 1.5,
+                            color: chatState.isUpload ? Colors.blue.shade300 : Colors.grey.shade300,
+                            width: 1,
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // File Icon/Image Preview
-                            Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: _getFileColor(fileExtension),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Center(
-                                    child: chatState.isUpload
-                                        ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          Colors.black,
-                                        ),
-                                      ),
-                                    )
-                                        : isImage
-                                        ? Icon(
-                                      Icons.image,
-                                      color: Colors.white,
-                                      size: 18,
-                                    )
-                                        : Icon(
-                                      _getFileIcon(fileExtension),
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
+                            // File Icon
+                            Center(
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: _getFileColor(fileExtension),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: isImage
+                                      ? const Icon(
+                                    Icons.image_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  )
+                                      : Icon(
+                                    _getFileIcon(fileExtension),
+                                    color: Colors.white,
+                                    size: 16,
                                   ),
                                 ),
-                                const Spacer(),
-                                if (chatState.isUpload)
-                                  Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.blue.shade100,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Icon(
-                                      Icons.sync,
-                                      color: Colors.blue.shade600,
-                                      size: 12,
-                                    ),
-                                  ),
-                              ],
+                              ),
                             ),
-                            const SizedBox(height: 8),
 
-                            // File Size
-                            Text(
-                              fileSize,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey.shade500,
+                            const SizedBox(height: 2),
+                            Center(
+                              child: Text(
+                                fileSize,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.grey.shade600,
+                                ),
                               ),
                             ),
                           ],
@@ -1000,35 +980,32 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                       ),
 
                       // Remove Button
-                      Positioned(
-                        top: -4,
-                        right: -4,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedFiles.removeAt(index);
-                              _messageController.clear();
-                            });
-                          },
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade500,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 2,
+                      if (!chatState.isUpload)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedFiles.removeAt(index);
+                                _messageController.clear();
+                              });
+                            },
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
                               ),
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 10,
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 12,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 );
@@ -1038,35 +1015,65 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
           // Upload Status
           if (chatState.isUpload) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                  ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.blue.shade100,
+                  width: 1,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.blue.shade600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
                     'Uploading files...',
                     style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.black,
+                      fontSize: 13,
+                      color: Colors.black87,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                ),
-              ],
+                  const Spacer(),
+                  Text(
+                    '${_selectedFiles.length}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ],
       ),
     );
   }
+
+// Helper function to truncate file names
+  String _truncateFileName(String fileName, int maxLength) {
+    if (fileName.length <= maxLength) return fileName;
+    final extension = fileName.split('.').last;
+    final nameWithoutExtension = fileName.substring(0, fileName.lastIndexOf('.'));
+    final truncatedName = nameWithoutExtension.substring(0, maxLength - extension.length - 1);
+    return '$truncatedName….$extension';
+  }
+
 
 // Helper methods for file handling
   String _getFileExtension(String fileName) {

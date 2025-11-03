@@ -1048,7 +1048,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   Future<String?> uploadImage(files) async {
     final accessToken = await StorageServices.read('accessToken');
-    print("files$files");
     try {
       state = state.copyWith(isUpload: true);
       final formData = dio.FormData();

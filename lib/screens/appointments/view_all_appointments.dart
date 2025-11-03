@@ -351,31 +351,37 @@ class _AppointmentsState extends ConsumerState<ViewAllAppointments> {
 
                         SizedBox(
                           width: 100,
-                          height: 56,
+                          height: 42,
                           child: ElevatedButton(
                             onPressed: openMeetingInBrowser,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Color(0xFF29BFFF),
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              elevation: 2,
-                              shadowColor: Color(0xFF29BFFF).withOpacity(0.3),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.video_call_rounded, size: 20),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Join',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Color(0xFF29BFFF), Color(0xFF0077FF)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                              ],
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.video_camera_front_rounded, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Join',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
