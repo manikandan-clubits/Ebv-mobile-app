@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:ebv/provider/patient_provider.dart';
+import 'package:ebv/screens/network_check_service.dart';
 import 'package:ebv/screens/patient/Profile.dart';
 import 'package:ebv/screens/chats/combined_chat.dart';
 import 'package:ebv/screens/appointments/view_today_appointments.dart';
@@ -9,7 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../provider/auth_provider.dart';
 import '../../provider/home_provider.dart';
 import '../../routes/menu_routes.dart';
-import '../../themes/theme_colors.dart';
 import '../../widgets/dialogs.dart';
 import '../auth/email_login.dart';
 import '../notification/notifications.dart';
@@ -37,8 +37,6 @@ class _HomeState extends ConsumerState<Home> {
   @override
   void initState() {
     super.initState();
-
-    log("inithome");
     // Initialize data
     Future.microtask(() {
       ref.read(homeProvider.notifier).readUser();
@@ -66,6 +64,7 @@ class _HomeState extends ConsumerState<Home> {
     _scaffoldKey.currentState?.openDrawer();
   }
 
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(homeProvider);
@@ -89,46 +88,48 @@ class _HomeState extends ConsumerState<Home> {
         return shouldExit ?? false;
       },
       child: SafeArea(
-        child: Scaffold(
-          floatingActionButton: FloatingActionButton(
-            backgroundColor: Colors.transparent,
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => CombinedChatScreen()));
-            },
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [Color(0xFF29BFFF), Color(0xFF8548D0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF8548D0).withOpacity(0.4),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
+        child: NetworkManager(
+          child: Scaffold(
+            floatingActionButton: FloatingActionButton(
+              backgroundColor: Colors.transparent,
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => CombinedChatScreen()));
+              },
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF29BFFF), Color(0xFF8548D0)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF8548D0).withOpacity(0.4),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.chat, color: Colors.white, size: 24),
+              ),
+            ),
+            key: _scaffoldKey,
+            drawer: _buildDrawer(state),
+            backgroundColor: Colors.grey[50],
+            body: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildHeader(state, context),
+                  state.todaysappointmentList!.isNotEmpty ?
+                  _buildAppointmentsAlert(context) : Container(),
+                  _buildQuickActionsHeader(),
+                  _buildMenuGrid(ref, context, screenWidth),
+                  SizedBox(height: 20),
                 ],
               ),
-              child: Icon(Icons.chat, color: Colors.white, size: 24),
-            ),
-          ),
-          key: _scaffoldKey,
-          drawer: _buildDrawer(state),
-          backgroundColor: Colors.grey[50],
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeader(state, context),
-                state.todaysappointmentList!.isNotEmpty ?
-                _buildAppointmentsAlert(context) : Container(),
-                _buildQuickActionsHeader(),
-                _buildMenuGrid(ref, context, screenWidth),
-                SizedBox(height: 20),
-              ],
             ),
           ),
         ),

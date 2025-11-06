@@ -191,9 +191,7 @@ class SigninProvider extends StateNotifier<signinState> {
         return;
       }
 
-      if (response.data == null ||
-          !response.data.containsKey('encryptedData') ||
-          !response.data.containsKey('iv')) {
+      if (response.data == null || !response.data.containsKey('encryptedData') || !response.data.containsKey('iv')) {
         return;
       }
 
