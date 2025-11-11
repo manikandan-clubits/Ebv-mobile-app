@@ -243,9 +243,9 @@ class ApiService {
     });
   }
 
-  Future<Response> delete(String endpoint) async {
+  Future<Response> delete(String endpoint, Map<String, dynamic>? params) async {
     return _requestWithRetry(
-          () => _dio.delete(endpoint),
+          () => _dio.delete(endpoint, queryParameters: params),
     );
   }
 

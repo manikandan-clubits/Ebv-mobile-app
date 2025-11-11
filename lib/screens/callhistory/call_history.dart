@@ -554,47 +554,9 @@ class _CallHistoryState extends ConsumerState<CallHistory> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header row with ID and call type
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'ID: ${call['Source']}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _getCallTypeColor(call['calltype']).withOpacity(0.15),
-                    border: Border.all(color: _getCallTypeColor(call['calltype']).withOpacity(0.3)),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    call['calltype']?.toString() ?? '--',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _getCallTypeColor(call['calltype']),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+
             const SizedBox(height: 16),
 
-            // Caller information
             Row(
               children: [
                 Container(
@@ -619,17 +581,19 @@ class _CallHistoryState extends ConsumerState<CallHistory> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+
                       Text(
                         call['firstName'] ?? 'Unknown Caller',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 18,
+                          fontSize: 16,
                           color: Colors.black87,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
+
                       Text(
                         call['CallSource'] ?? '--',
                         style: TextStyle(
@@ -966,7 +930,7 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
                     color: Colors.grey[600],
                     size: 20,
                   ),
-                  onPressed: () => _showVolumeSlider(context),
+                  onPressed: () => null,
                 ),
               ],
             ),
@@ -976,47 +940,6 @@ class _AudioPlayerWidgetState extends State<AudioPlayerWidget> {
     }
   }
 
-  void _showVolumeSlider(BuildContext context) {
-    double volume = 1.0;
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Adjust Volume'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Slider(
-                    value: volume,
-                    min: 0,
-                    max: 1,
-                    divisions: 10,
-                    onChanged: (value) {
-                      setState(() => volume = value);
-                      widget.audioPlayer.setVolume(value);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Volume: ${(volume * 100).round()}%',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 
   @override
   void dispose() {

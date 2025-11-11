@@ -10,6 +10,7 @@ import '../../models/chat_model.dart';
 import '../../provider/chat_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
+import '../voip/dial_pad.dart';
 import 'single_message_bubble.dart';
 
 
@@ -82,8 +83,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _sendMessage() async {
     if (_selectedFiles.isNotEmpty) {
-      final fileUrl =
-      await ref.read(chatProvider.notifier).uploadImage(_selectedFiles);
+      final fileUrl = await ref.read(chatProvider.notifier).uploadImage(_selectedFiles);
       urls = [];
       urls.add(fileUrl);
     }
@@ -458,110 +458,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
 
-  Widget _buildFilePreview(PlatformFile file, int index) {
-    final isImage = _isImageFile(file.name);
-    final fileSize = _formatFileSize(file.size);
-
-    return Container(
-      margin: const EdgeInsets.only(right: 12),
-      width: 120,
-      child: Stack(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.grey.shade200,
-                width: 1.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: _getFileColor(_getFileExtension(file.name)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          _getFileIcon(_getFileExtension(file.name)),
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Text(
-                  file.name.length > 12
-                      ? '${file.name.substring(0, 10)}...'
-                      : file.name,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  fileSize,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            top: -4,
-            right: -4,
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedFiles.removeAt(index);
-                });
-              },
-              child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: Colors.red.shade500,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 2,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.close,
-                  color: Colors.white,
-                  size: 10,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   // Helper methods for file handling
   String _getFileExtension(String fileName) {
     final parts = fileName.split('.');
@@ -706,6 +602,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  static Future<void> showAsBottomSheet(BuildContext context) {
+    return showModalBottomSheet(
+      useSafeArea: true,
+      isDismissible: true,
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const DialPadScreen(),
+    );
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -719,7 +627,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // Custom App Bar
           Container(
             padding: const EdgeInsets.only(
-              top: 60,
+              top: 25,
               bottom: 16,
               left: 16,
               right: 16,
@@ -728,9 +636,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withOpacity(0.02),
                   blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
@@ -832,7 +740,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       color: Colors.black87,
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    showAsBottomSheet(context);
+                  },
                 ),
                 IconButton(
                   icon: Container(

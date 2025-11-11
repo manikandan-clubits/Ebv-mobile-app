@@ -23,6 +23,7 @@ class _ChatSelectionScreenState extends ConsumerState<SingleChat> {
     super.initState();
     _isMounted = true;
     ref.read(chatProvider.notifier).initializeSocket();
+
   }
 
   Future<void> _loadChatsSafely() async {

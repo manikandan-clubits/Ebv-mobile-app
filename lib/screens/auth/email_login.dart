@@ -16,6 +16,7 @@ class _SignInState extends ConsumerState<SignIn> {
   late FirebaseMessaging _messaging;
   bool _obscurePassword = true;
 
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +60,7 @@ class _SignInState extends ConsumerState<SignIn> {
 
   @override
   Widget build(BuildContext context) {
+
     final signinState = ref.watch(signInProvider);
     final signinController = ref.read(signInProvider.notifier);
     final screenHeight = MediaQuery.of(context).size.height;
@@ -262,26 +264,26 @@ class _SignInState extends ConsumerState<SignIn> {
 
                         SizedBox(height: 16),
 
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-
-                            TextButton(
-                              onPressed: () => signinController.setOtpType(context, "forgotpassword"),
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: Text(
-                                'Forgot Password?',
-                                style: TextStyle(
-                                  color: Color(0xFF29BFFF),
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Row(
+                        //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        //   children: [
+                        //
+                        //     TextButton(
+                        //       onPressed: () => signinController.setOtpType(context, "forgotpassword"),
+                        //       style: TextButton.styleFrom(
+                        //         padding: EdgeInsets.zero,
+                        //       ),
+                        //       child: Text(
+                        //         'Forgot Password?',
+                        //         style: TextStyle(
+                        //           color: Color(0xFF29BFFF),
+                        //           fontWeight: FontWeight.w600,
+                        //           fontSize: 14,
+                        //         ),
+                        //       ),
+                        //     ),
+                        //   ],
+                        // ),
 
                         SizedBox(height: 24),
 

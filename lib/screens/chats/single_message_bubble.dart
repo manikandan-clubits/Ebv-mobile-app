@@ -322,15 +322,15 @@ class _MessageBubbleState extends State<MessageBubble> {
     return GestureDetector(
       onTap: () => _showImagePreview(imageUrl),
       child: Container(
-        width: 220,
-        height: 160,
-        margin: const EdgeInsets.only(bottom: 8),
+        width: 200,
+        height: 150,
+        margin: EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Stack(
             children: [
               Image.network(
@@ -341,32 +341,31 @@ class _MessageBubbleState extends State<MessageBubble> {
                 loadingBuilder: (context, child, loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Container(
-                    color: Colors.grey.shade100,
+                    color: Colors.grey.shade200,
                     child: Center(
                       child: CircularProgressIndicator(
                         value: loadingProgress.expectedTotalBytes != null
                             ? loadingProgress.cumulativeBytesLoaded /
                             loadingProgress.expectedTotalBytes!
                             : null,
-                        color: Colors.deepPurple,
                       ),
                     ),
                   );
                 },
                 errorBuilder: (context, error, stackTrace) {
                   return Container(
-                    color: Colors.grey.shade100,
+                    color: Colors.grey.shade200,
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.error_outline, color: Colors.grey.shade400),
-                          const SizedBox(height: 4),
+                          Icon(Icons.error, color: Colors.grey),
+                          SizedBox(height: 4),
                           Text(
                             'Failed to load',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade500,
+                              color: Colors.grey,
                             ),
                           ),
                         ],
@@ -379,7 +378,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 bottom: 8,
                 right: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(8),
@@ -388,13 +387,12 @@ class _MessageBubbleState extends State<MessageBubble> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.photo, size: 12, color: Colors.white),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'Photo',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -415,21 +413,21 @@ class _MessageBubbleState extends State<MessageBubble> {
     return GestureDetector(
       onTap: () => viewFiles(fileUrl),
       child: Container(
-        width: 220,
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        width: 200,
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: widget.isMe ? Colors.deepPurple.shade50 : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: isPdf ? Colors.red.shade100 : Colors.blue.shade100,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 isPdf ? Icons.picture_as_pdf : Icons.insert_drive_file,
@@ -437,7 +435,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                 size: 24,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,19 +445,16 @@ class _MessageBubbleState extends State<MessageBubble> {
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
-                      color: widget.isMe ? Colors.deepPurple : Colors.black87,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 2),
                   Text(
                     isPdf ? 'PDF Document' : 'File',
                     style: TextStyle(
                       fontSize: 12,
-                      color: widget.isMe
-                          ? Colors.deepPurple.shade600
-                          : Colors.grey.shade600,
+                      color: Colors.grey.shade600,
                     ),
                   ),
                 ],

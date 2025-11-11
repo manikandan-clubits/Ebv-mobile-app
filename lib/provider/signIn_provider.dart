@@ -19,6 +19,43 @@ import '../screens/splash_screen.dart';
 import '../services/api_service.dart';
 import '../services/storage_services.dart';
 
+
+
+
+final countdownTimerProvider = StateNotifierProvider<CountdownTimerNotifier, int>(
+      (ref) => CountdownTimerNotifier(),
+);
+
+final resendTriggerProvider = StateProvider<bool>((ref) => false);
+
+
+class CountdownTimerNotifier extends StateNotifier<int> {
+  Timer? _timer;
+
+  CountdownTimerNotifier() : super(0);
+
+  void startTimer() {
+    if (_timer != null && _timer!.isActive) return; // Prevent multiple timers
+    state = 90;
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (state > 0) {
+        state--;
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  bool get isRunning => state > 0; // Helper to check timer status
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+}
+
 class signinState {
   final FormGroup loginForm;
   final UserModel? userInfo;
@@ -67,44 +104,7 @@ class signinState {
   }
 }
 
-
-final countdownTimerProvider = StateNotifierProvider<CountdownTimerNotifier, int>(
-      (ref) => CountdownTimerNotifier(),
-);
-
-final resendTriggerProvider = StateProvider<bool>((ref) => false);
-
-
-class CountdownTimerNotifier extends StateNotifier<int> {
-  Timer? _timer;
-
-  CountdownTimerNotifier() : super(0);
-
-  void startTimer() {
-    if (_timer != null && _timer!.isActive) return; // Prevent multiple timers
-    state = 90;
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (state > 0) {
-        state--;
-      } else {
-        timer.cancel();
-      }
-    });
-  }
-
-  bool get isRunning => state > 0; // Helper to check timer status
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-}
-
-
-
-class SigninProvider extends StateNotifier<signinState> {
+class SignInNotifier extends StateNotifier<signinState> {
 
   late FirebaseMessaging _messaging;
   String? tokens;
@@ -112,7 +112,7 @@ class SigninProvider extends StateNotifier<signinState> {
   Isolate? isolate;
   late ReceivePort receivePort;
 
-  SigninProvider() : super(signinState(
+  SignInNotifier() : super(signinState(
       loginForm: FormGroup({
         "Email": FormControl<String>(validators: [Validators.required, Validators.email]),
         "Password": FormControl<String>(validators: [Validators.required]),
@@ -230,8 +230,6 @@ class SigninProvider extends StateNotifier<signinState> {
     ToastService.showErrorSnackbar(context,errorMessage);
   }
 
-
-
   Future<void> _handleSuccessfulLogin(
       Map<String, dynamic> response, BuildContext context) async {
     await StorageServices.delete("userInfo");
@@ -258,12 +256,31 @@ class SigninProvider extends StateNotifier<signinState> {
   }
 
 
+  Future<void> readUser() async {
+    state = state.copyWith(isLoading: true);
+    var result = await getSavedUser();
+    if (result != null) {
+      state = state.copyWith(userInfo: result,isLoading: false);
+    }
+  }
+
+  Future<UserModel?> getSavedUser() async {
+    try {
+      final userString = await StorageServices.read('userInfo');
+      if (userString != null) {
+        return UserModel.fromJson(userString);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<String> getFCMToken() async {
     _messaging = FirebaseMessaging.instance;
     final token = await _messaging.getToken();
     return token ?? ""; // Handle null case
   }
-
 
   void _showErrorSnackbar(context,String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -275,7 +292,6 @@ class SigninProvider extends StateNotifier<signinState> {
       ),
     );
   }
-
 
   void signInWithEmailOtp(BuildContext context, emailController, WidgetRef ref) async {
     state = state.copyWith(mobileOtp: emailController);
@@ -372,7 +388,7 @@ class SigninProvider extends StateNotifier<signinState> {
 
       if (res['success']) {
         Navigator.push(
-            context, MaterialPageRoute(builder: (context) => changepassword()));
+            context, MaterialPageRoute(builder: (context) => ChangePassword()));
 
 
         Fluttertoast.showToast(
@@ -399,17 +415,17 @@ class SigninProvider extends StateNotifier<signinState> {
     state = state.copyWith(isLoading: true);
 
     Map<String, dynamic> body = {
-      "Email": state.mobileOtp!.text.toString().trim(),
+      "Email": state.userInfo?.email.toString().trim(),
       "Pwd": password.toString().trim(),
     };
 
     log("body${body.toString()}");
     try {
 
-      dynamic response = await ApiService().put('https://dev-hrms-backend.azurewebsites.net/api/resident/updatepassword', body);
-      final res=  ApiService().decryptData(response.data['encryptedData']!, response.data['iv']);
+      dynamic response = await ApiService().put('/api/resident/updatepassword', body);
+      final result=  ApiService().decryptData(response.data['encryptedData']!, response.data['iv']);
       log("response${response.toString()}");
-      if (res!=null) {
+      if (result!=null) {
         Navigator.push(context, MaterialPageRoute(builder: (context) => SignIn()));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Password Updated Successfully')),
@@ -418,8 +434,7 @@ class SigninProvider extends StateNotifier<signinState> {
         state = state.copyWith(isLoading: false);
       } else {
         state = state.copyWith(isLoading: false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(response['message'])),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(response['message'])));
 
       }
     }  catch (e) {
@@ -459,8 +474,8 @@ class SigninProvider extends StateNotifier<signinState> {
 
 }
 
-final signInProvider = StateNotifierProvider<SigninProvider, signinState>((ref) {
-  return SigninProvider();
+final signInProvider = StateNotifierProvider<SignInNotifier, signinState>((ref) {
+  return SignInNotifier();
 });
 
 
