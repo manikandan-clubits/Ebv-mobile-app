@@ -35,6 +35,7 @@ class _ChangePasswordState extends ConsumerState<ChangePassword> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(signInProvider);
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(

@@ -83,6 +83,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     final message = _messageController.text.trim();
     List<dynamic> urls = [];
     if (message.isEmpty) return;
+    print("_selectedFiles$_selectedFiles");
 
     if(_selectedFiles.isNotEmpty) {
       final fileUrl = await ref.read(chatProvider.notifier).uploadImage(_selectedFiles);
@@ -217,7 +218,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isMe ? const Color(0xFF6a11cb) : Colors.white,
+                      color: isMe ? Colors.deepPurple.shade400 : Colors.grey.shade100,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(20),
                         topRight: const Radius.circular(20),
@@ -1680,12 +1681,19 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: _showSendButton ? Colors.deepPurple : Colors.grey,
-                  child: Center(
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _showSendButton ? _sendMessage : null,
+
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 48,
+                  height: 48,
+                  child: FloatingActionButton(
+                    onPressed: _sendMessage,
+                    backgroundColor: Colors.deepPurple,
+                    elevation: 0,
+                    child: const Icon(
+                      Iconsax.send_1,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
                 ),

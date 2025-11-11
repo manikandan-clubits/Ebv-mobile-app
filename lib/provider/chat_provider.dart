@@ -1179,7 +1179,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
             msg: "Sent",
             toastLength: Toast.LENGTH_SHORT,
             gravity: ToastGravity.BOTTOM,
-            backgroundColor: Colors.green,
+            backgroundColor: Colors.black,
             textColor: Colors.white,
             fontSize: 16.0,
           );

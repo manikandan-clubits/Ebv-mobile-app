@@ -13,8 +13,6 @@ import 'package:audioplayers/audioplayers.dart';
 import '../voip/dial_pad.dart';
 import 'single_message_bubble.dart';
 
-
-
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
   final String chatName;
@@ -40,18 +38,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   List urls = [];
   bool _isMounted = false;
   bool _isUploading = false;
-  bool _showSendButton = false;
+  // bool _showSendButton = false;
 
   @override
   void initState() {
     super.initState();
     _isMounted = true;
 
-    _messageController.addListener(() {
-      setState(() {
-        _showSendButton = _messageController.text.trim().isNotEmpty;
-      });
-    });
+    // _messageController.addListener(() {
+    //   setState(() {
+    //     _showSendButton = _messageController.text.trim().isNotEmpty;
+    //   });
+    // });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_isMounted && widget.chat != null) {
@@ -63,9 +61,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _loadMessagesSafely() async {
     try {
       await ref.read(chatProvider.notifier).loadMessages(
-        widget.chatId,
-        widget.chat!.userID,
-      );
+            widget.chatId,
+            widget.chat!.userID,
+          );
     } catch (e) {
       log('Error loading messages: $e');
     }
@@ -83,23 +81,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _sendMessage() async {
     if (_selectedFiles.isNotEmpty) {
-      final fileUrl = await ref.read(chatProvider.notifier).uploadImage(_selectedFiles);
+      final fileUrl =
+          await ref.read(chatProvider.notifier).uploadImage(_selectedFiles);
       urls = [];
       urls.add(fileUrl);
     }
 
-    if (_messageController.text.trim().isNotEmpty) {
-      ref.read(chatProvider.notifier).sendMessage(
-          uploadUrl: urls,
-          author: widget.chatName,
-          content: _messageController.text.trim(),
-          receiverId: widget.chat!.userID,
-          chatId: int.tryParse(widget.chatId) ?? 0,
-          selectedFiles: _selectedFiles);
-      _selectedFiles.clear();
-      _messageController.clear();
-      _scrollToBottom();
-    }
+    ref.read(chatProvider.notifier).sendMessage(
+        uploadUrl: urls,
+        author: widget.chatName,
+        content: _messageController.text.trim(),
+        receiverId: widget.chat!.userID,
+        chatId: int.tryParse(widget.chatId) ?? 0,
+        selectedFiles: _selectedFiles);
+    _selectedFiles.clear();
+    _messageController.clear();
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -210,7 +207,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 final fileSize = _formatFileSize(file.size);
 
                 return Container(
-                  margin: EdgeInsets.only(right: index == _selectedFiles.length - 1 ? 0 : 8),
+                  margin: EdgeInsets.only(
+                      right: index == _selectedFiles.length - 1 ? 0 : 8),
                   width: 100,
                   child: Stack(
                     children: [
@@ -218,14 +216,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: chatState.isUpload ? Colors.blue.shade300 : Colors.grey.shade300,
-                            width: 1,
-                          ),
-                        ),
+                        // decoration: BoxDecoration(
+                        //   color: Colors.grey.shade50,
+                        //   borderRadius: BorderRadius.circular(12),
+                        //   border: Border.all(
+                        //     color: chatState.isUpload ? Colors.blue.shade300 : Colors.grey.shade300,
+                        //     width: 1,
+                        //   ),
+                        // ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -241,15 +239,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 child: Center(
                                   child: isImage
                                       ? const Icon(
-                                    Icons.image_rounded,
-                                    color: Colors.white,
-                                    size: 16,
-                                  )
+                                          Icons.image_rounded,
+                                          color: Colors.white,
+                                          size: 16,
+                                        )
                                       : Icon(
-                                    _getFileIcon(fileExtension),
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
+                                          _getFileIcon(fileExtension),
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
                                 ),
                               ),
                             ),
@@ -269,32 +267,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
 
                       // Remove Button
-                      if (!chatState.isUpload)
-                        Positioned(
-                          top: -4,
-                          right: -4,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _selectedFiles.removeAt(index);
-                                _messageController.clear();
-                              });
-                            },
-                            child: Container(
-                              width: 20,
-                              height: 20,
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.close_rounded,
-                                color: Colors.white,
-                                size: 12,
-                              ),
+                      Positioned(
+                        top: 4,
+                        right: 5,
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedFiles.removeAt(index);
+                              _messageController.clear();
+                            });
+                          },
+                          child: Container(
+                            width: 20,
+                            height: 15,
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close_rounded,
+                              color: Colors.white,
+                              size: 12,
                             ),
                           ),
                         ),
+                      ),
                     ],
                   ),
                 );
@@ -389,14 +386,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'jpg', 'png'],
+        allowedExtensions: [
+          'pdf',
+          'doc',
+          'docx',
+          'xls',
+          'xlsx',
+          'txt',
+          'jpg',
+          'png'
+        ],
         allowMultiple: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
         setState(() {
           _selectedFiles.addAll(result.files);
-          _messageController.text = result.files.first.name;
+          _messageController.text = "";
         });
 
         for (final file in result.files) {
@@ -434,7 +440,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         final platformFile = await _convertXFileToPlatformFile(image);
         setState(() {
           _selectedFiles.add(platformFile);
-          _messageController.text = image.name;
+          _messageController.text = "";
         });
         // setState(() {
         //   _messageController.text = platformFile.name;
@@ -456,7 +462,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       path: xFile.path,
     );
   }
-
 
   // Helper methods for file handling
   String _getFileExtension(String fileName) {
@@ -562,7 +567,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       color: const Color(0xFF6a11cb).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Iconsax.document, color: Color(0xFF6a11cb)),
+                    child:
+                        const Icon(Iconsax.document, color: Color(0xFF6a11cb)),
                   ),
                   title: const Text('Document'),
                   subtitle: Text(
@@ -602,7 +608,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  static Future<void> showAsBottomSheet(BuildContext context) {
+  Future<void> showAsBottomSheet(BuildContext context) {
     return showModalBottomSheet(
       useSafeArea: true,
       isDismissible: true,
@@ -612,8 +618,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       builder: (context) => const DialPadScreen(),
     );
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -757,7 +761,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       color: Colors.black87,
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    showAsBottomSheet(context);
+                  },
                 ),
               ],
             ),
@@ -767,99 +773,99 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Expanded(
             child: chatState.chatMsgLoading && chatState.messages.isEmpty
                 ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.deepPurple.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.deepPurple.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const CircularProgressIndicator(
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.deepPurple),
+                            strokeWidth: 3,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Loading messages',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                          ),
                         ),
                       ],
                     ),
-                    child: const CircularProgressIndicator(
-                      valueColor:
-                      AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-                      strokeWidth: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading messages',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            )
+                  )
                 : messages.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Iconsax.messages_3,
-                      size: 50,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'No messages yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey.shade700,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Send a message to start the conversation',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                ],
-              ),
-            )
-                : Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.grey.shade50,
-                    Colors.grey.shade100,
-                  ],
-                ),
-              ),
-              child: ListView.builder(
-                controller: _scrollController,
-                reverse: true,
-                padding: const EdgeInsets.all(16),
-                itemCount: messages.length,
-                itemBuilder: (context, index) {
-                  return _buildMessage(messages[index]);
-                },
-              ),
-            ),
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Iconsax.messages_3,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'No messages yet',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Send a message to start the conversation',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.grey.shade50,
+                              Colors.grey.shade100,
+                            ],
+                          ),
+                        ),
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          reverse: true,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) {
+                            return _buildMessage(messages[index]);
+                          },
+                        ),
+                      ),
           ),
 
           // Selected Files Preview
@@ -888,7 +894,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     child: const Icon(
                       Iconsax.add,
                       size: 20,
-                      color: Colors.grey,
+                      color: Colors.black,
                     ),
                   ),
                 ),
@@ -919,14 +925,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             onSubmitted: (_) => _sendMessage(),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Iconsax.emoji_happy,
-                            color: Colors.grey,
-                            size: 20,
-                          ),
-                          onPressed: () {},
-                        ),
                       ],
                     ),
                   ),
@@ -936,7 +934,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 // Send Button
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: _showSendButton ? 48 : 0,
+                  width: 48,
                   height: 48,
                   child: FloatingActionButton(
                     onPressed: _sendMessage,
