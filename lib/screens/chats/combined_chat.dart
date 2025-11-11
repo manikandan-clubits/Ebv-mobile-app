@@ -14,17 +14,23 @@ class CombinedChatScreen extends ConsumerStatefulWidget {
 }
 
 class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   bool _isMounted = false;
-
+  late final ChatNotifier chatNotifier;
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _isMounted = true;
     ref.read(chatProvider.notifier).initializeSocket();
-  _tabController.addListener(_handleTabChange);
+    _tabController.addListener(_handleTabChange);
+    WidgetsBinding.instance.addObserver(this);
+
+    print("callEverySeconds");
+    chatNotifier = ref.read(chatProvider.notifier);
+    chatNotifier.checkUserActive(true);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_isMounted) {
         _loadChatsSafely();
@@ -32,7 +38,22 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     });
   }
 
-   void _handleTabChange() {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        chatNotifier.checkUserActive(true);
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.inactive:
+        chatNotifier.checkUserActive(false);
+        break;
+      case AppLifecycleState.hidden:
+    }
+  }
+
+  void _handleTabChange() {
     if (!_tabController.indexIsChanging && _isMounted) {
       if (_tabController.index == 0) {
         _loadChatsSafely();
@@ -42,7 +63,7 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     }
   }
 
-   Future<void> _loadGroupsSafely() async {
+  Future<void> _loadGroupsSafely() async {
     try {
       await ref.read(chatProvider.notifier).loadGroups();
     } catch (e) {
@@ -61,16 +82,20 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
   @override
   void dispose() {
     _isMounted = false;
-     _tabController.removeListener(_handleTabChange);
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
+    chatNotifier.checkUserActive(false);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.read(chatProvider.notifier).checkUserActive(true);
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight + kTextTabBarHeight),
+        preferredSize:
+            const Size.fromHeight(kToolbarHeight + kTextTabBarHeight),
         child: Container(
           decoration: const BoxDecoration(
             gradient: const LinearGradient(
@@ -124,7 +149,3 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     );
   }
 }
-
-
-
-

@@ -1,6 +1,5 @@
-import 'dart:developer';
-
 import 'package:ebv/provider/patient_provider.dart';
+import 'package:ebv/screens/network_check_service.dart';
 import 'package:ebv/screens/patient/Profile.dart';
 import 'package:ebv/screens/chats/combined_chat.dart';
 import 'package:ebv/screens/appointments/view_today_appointments.dart';
@@ -9,9 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../provider/auth_provider.dart';
 import '../../provider/home_provider.dart';
 import '../../routes/menu_routes.dart';
-import '../../themes/theme_colors.dart';
 import '../../widgets/dialogs.dart';
-import '../auth/email_login.dart';
 import '../notification/notifications.dart';
 
 class Home extends ConsumerStatefulWidget {
@@ -37,8 +34,6 @@ class _HomeState extends ConsumerState<Home> {
   @override
   void initState() {
     super.initState();
-
-    log("inithome");
     // Initialize data
     Future.microtask(() {
       ref.read(homeProvider.notifier).readUser();
@@ -57,7 +52,7 @@ class _HomeState extends ConsumerState<Home> {
 
   void _initializeAuth() {
     final authState = ref.read(authStateProvider); // Use read instead of watch
-    if (!authState.isTokenVerified && !authState.isLoading) {
+    if (!authState.isTokenVerified || !authState.isLoading) {
       ref.read(authStateProvider.notifier).initializeAuth(context);
     }
   }
@@ -66,22 +61,11 @@ class _HomeState extends ConsumerState<Home> {
     _scaffoldKey.currentState?.openDrawer();
   }
 
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(homeProvider);
     final screenWidth = MediaQuery.of(context).size.width;
-
-    // Auth state listener - moved to build method
-    ref.listen<AuthState>(authStateProvider, (previous, current) {
-      if (!current.isTokenVerified && !current.isLoading) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => SignIn()),
-          );
-        });
-      }
-    });
 
     return WillPopScope(
       onWillPop: () async {
@@ -89,46 +73,48 @@ class _HomeState extends ConsumerState<Home> {
         return shouldExit ?? false;
       },
       child: SafeArea(
-        child: Scaffold(
-          floatingActionButton: FloatingActionButton(
-            backgroundColor: Colors.transparent,
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => CombinedChatScreen()));
-            },
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [Color(0xFF29BFFF), Color(0xFF8548D0)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Color(0xFF8548D0).withOpacity(0.4),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
+        child: NetworkManager(
+          child: Scaffold(
+            floatingActionButton: FloatingActionButton(
+              backgroundColor: Colors.transparent,
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => CombinedChatScreen()));
+              },
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF29BFFF), Color(0xFF8548D0)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0xFF8548D0).withOpacity(0.4),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.chat, color: Colors.white, size: 24),
+              ),
+            ),
+            key: _scaffoldKey,
+            drawer: _buildDrawer(state),
+            backgroundColor: Colors.grey[50],
+            body: SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildHeader(state, context),
+                  state.todaysappointmentList!.isNotEmpty ?
+                  _buildAppointmentsAlert(context) : Container(),
+                  _buildQuickActionsHeader(),
+                  _buildMenuGrid(ref, context, screenWidth),
+                  SizedBox(height: 20),
                 ],
               ),
-              child: Icon(Icons.chat, color: Colors.white, size: 24),
-            ),
-          ),
-          key: _scaffoldKey,
-          drawer: _buildDrawer(state),
-          backgroundColor: Colors.grey[50],
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeader(state, context),
-                state.todaysappointmentList!.isNotEmpty ?
-                _buildAppointmentsAlert(context) : Container(),
-                _buildQuickActionsHeader(),
-                _buildMenuGrid(ref, context, screenWidth),
-                SizedBox(height: 20),
-              ],
             ),
           ),
         ),
@@ -398,7 +384,7 @@ class _HomeState extends ConsumerState<Home> {
                 ),
                 GestureDetector(
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context)=>NotificationsScreen()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context)=>Notifications()));
                   },
                   child: Container(
                     padding: EdgeInsets.all(8),
@@ -406,8 +392,30 @@ class _HomeState extends ConsumerState<Home> {
                       color: Colors.white.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(Icons.notifications, color: Colors.white, size: 22),
-                  ),
+                    child: Stack(
+                      children: [
+                        Icon(Icons.notifications, color: Colors.white, size: 22),
+                        // Notification badge
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Container(
+                            padding: EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            constraints: BoxConstraints(
+                              minWidth: 10,
+                              minHeight: 10,
+                            ),
+                            child: Container()
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
                 ),
               ],
             ),

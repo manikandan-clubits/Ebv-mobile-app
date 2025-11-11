@@ -102,7 +102,7 @@ class ChatUser {
   final bool status;
   final DateTime lastSeen;
   final dynamic isMaster;
-  final String adminID;
+  final String? adminID;
   final bool isActive;
   final String? lastMessage;
   final DateTime? lastMessageTime;
@@ -111,7 +111,7 @@ class ChatUser {
   final int? chatID;
   final int? receiverID;
   final int? messageID;
-  final dynamic unreadCount; // Can be List<Map<String, dynamic>> or int
+  final dynamic unreadCount;
 
   ChatUser({
     required this.userID,
@@ -123,7 +123,7 @@ class ChatUser {
     required this.status,
     required this.lastSeen,
     this.isMaster,
-    required this.adminID,
+    this.adminID,
     required this.isActive,
     this.lastMessage,
     this.lastMessageTime,
@@ -137,28 +137,85 @@ class ChatUser {
 
   factory ChatUser.fromJson(Map<String, dynamic> json) {
     return ChatUser(
-      userID: json['UserID'] as int,
-      username: json['Username'] as String,
-      email: json['Email'] as String,
-      firstName: json['FirstName'] as String,
-      lastName: json['LastName'] as String,
-      profilePicture: json['ProfilePicture'] as String?,
-      status: json['Status'] as bool,
-      lastSeen: DateTime.parse(json['LastSeen'] as String),
+      userID: _parseInt(json['UserID']),
+      username: _parseString(json['Username']),
+      email: _parseString(json['Email']),
+      firstName: _parseString(json['FirstName']),
+      lastName: _parseString(json['LastName']),
+      profilePicture: _parseString(json['ProfilePicture']),
+      status: _parseBool(json['Status']),
+      lastSeen: _parseDateTime(json['LastSeen']),
       isMaster: json['IsMaster'],
-      adminID: json['AdminID'] as String,
-      isActive: json['isActive'] as bool,
-      lastMessage: json['lastMessage'] as String?,
-      lastMessageTime: json['lastMessageTime'] != null
-          ? DateTime.parse(json['lastMessageTime'] as String)
-          : null,
-      isSeenByReceiver: json['IsSeenByReceiver'] as bool,
-      isSeenBySender: json['IsSeenBySender'] as bool,
-      chatID: json['ChatID'] as int?,
-      receiverID: json['receiverID'] as int?,
-      messageID: json['MessageID'] as int?,
+      adminID: _parseString(json['AdminID']),
+      isActive: _parseBool(json['isActive']),
+      lastMessage: _parseString(json['lastMessage']),
+      lastMessageTime: _parseDateTime(json['lastMessageTime']),
+      isSeenByReceiver: _parseBool(json['IsSeenByReceiver']),
+      isSeenBySender: _parseBool(json['IsSeenBySender']),
+      chatID: _parseInt(json['ChatID']),
+      receiverID: _parseInt(json['receiverID']),
+      messageID: _parseInt(json['MessageID']),
       unreadCount: json['unreadCount'],
     );
+  }
+
+  // Helper methods for safe parsing
+  static String _parseString(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value;
+    return value.toString();
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value == null) return 0;
+    if (value is int) return value;
+    if (value is String) {
+      return int.tryParse(value) ?? 0;
+    }
+    if (value is double) return value.toInt();
+    return 0;
+  }
+
+  static bool _parseBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    if (value is String) {
+      return value.toLowerCase() == 'true' || value == '1';
+    }
+    return false;
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is DateTime) return value;
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    return DateTime.now();
+  }
+
+  static DateTime? _parseNullableDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return null;
+      }
+    }
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -181,7 +238,37 @@ class ChatUser {
       'ChatID': chatID,
       'receiverID': receiverID,
       'MessageID': messageID,
-      'unreadCount': unreadCount
+      'unreadCount': unreadCount,
     };
+  }
+
+  // Helper method to get display name
+  String get displayName {
+    if (firstName.isNotEmpty && lastName.isNotEmpty) {
+      return '$firstName $lastName';
+    }
+    return username;
+  }
+
+  // Helper method to get profile picture URL or placeholder
+  String get profilePictureUrl {
+    if (profilePicture == null || profilePicture!.isEmpty) {
+      return ''; // Return empty or placeholder image URL
+    }
+    return profilePicture!;
+  }
+
+  // Helper method to get unread count as integer
+  int get unreadCountAsInt {
+    if (unreadCount == null) return 0;
+    if (unreadCount is int) return unreadCount;
+    if (unreadCount is String) {
+      return int.tryParse(unreadCount) ?? 0;
+    }
+    if (unreadCount is List) {
+      // If unreadCount is a list, return its length or parse accordingly
+      return unreadCount.length;
+    }
+    return 0;
   }
 }

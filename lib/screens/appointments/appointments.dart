@@ -15,6 +15,7 @@ class Appointments extends ConsumerStatefulWidget {
 }
 
 class _AppointmentsState extends ConsumerState<Appointments> {
+
   int _selectedTimeFilter = 3;
   String filterStatus = "All";
 

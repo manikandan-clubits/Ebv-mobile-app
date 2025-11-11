@@ -111,7 +111,7 @@ class _SignInEmailMobileViewState extends ConsumerState<SignInEmailMobileView> {
                                   final isResending = ref.watch(resendTriggerProvider);
                                   if (isResending) return;
                                   ref.read(resendTriggerProvider.notifier).state = true;
-                                  Future.delayed(const Duration(seconds: 1), () {
+                                  Future.delayed(const Duration(seconds: 5), () {
                                     ref.read(resendTriggerProvider.notifier).state = false;
                                     timerNotifier.startTimer(); // Restart the timer
                                   });

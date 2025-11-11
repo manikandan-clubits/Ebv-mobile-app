@@ -144,8 +144,7 @@ class PatientNotifier extends StateNotifier<PatientState> {
     state= state.copyWith(contactLoading: true);
       final response = await  ApiService().post('/pms/get/patientcontactinfo',params);
     final res=  ApiService().decryptData(response.data['encryptedData']!, response.data['iv']);
-    state = state.copyWith(contactInfo: res['data']);
-      state= state.copyWith(contactLoading: false);
+    state = state.copyWith(contactInfo: res['data'],contactLoading: false);
       getInsuranceInfo(patientID);
     }
 
@@ -154,15 +153,15 @@ class PatientNotifier extends StateNotifier<PatientState> {
     state= state.copyWith(contactLoading: true);
     final response = await  ApiService().post('/pms/get/insuranceinfo',params);
     final res=  ApiService().decryptData(response.data['encryptedData']!, response.data['iv']);
-    state = state.copyWith(insuranceInfo: res['data']);
-    state= state.copyWith(contactLoading: false);
+    state = state.copyWith(insuranceInfo: res['data'],contactLoading: false);
   }
 
 
   Future<String?> getBasicPdf(BuildContext context, String patientID, String type) async {
     try {
+
       Map<String, dynamic> params = {
-        "patientId": patientID, // Use the passed patientID
+        "patientId": patientID,
         "eligibilityId": "d836c5b0-5175-4acb-849c-d2584ff1d641",
         "basicReport": true
       };
@@ -298,7 +297,7 @@ class PatientNotifier extends StateNotifier<PatientState> {
   }
 
 
-  getEbvPatients(context) async {
+  Future<void> getEbvPatients(context) async {
     state = state.copyWith(isLoading: true);
     Map<String, dynamic> params = {
       "Status": "",
@@ -347,7 +346,7 @@ class PatientNotifier extends StateNotifier<PatientState> {
     }
   }
 
-  getPatientById(var ID,context) async {
+  Future<void> getPatientById(var ID,context) async {
     state = state.copyWith(isLoading: true);
     Map<String, dynamic> params = {
       "PatientId": ID,
@@ -369,7 +368,7 @@ class PatientNotifier extends StateNotifier<PatientState> {
     }
   }
 
-  getReportPdf(var ID,context) async {
+  Future<void> getReportPdf(var ID,context) async {
     state=state.copyWith(isDownloadLoading: true);
 
     Map<String, dynamic> basicParams ={
@@ -393,10 +392,6 @@ class PatientNotifier extends StateNotifier<PatientState> {
       "eligibilityId": "97d32070-c40b-49cc-b500-052aabab627b",
       "basicReport": false
     };
-
-
-
-
 
     try {
       final response = await ApiService().post('/eligibility/getreportPdf', params);
@@ -532,87 +527,6 @@ class PatientNotifier extends StateNotifier<PatientState> {
   }
 
 
-
-  Widget _buildPdfViewer(String? pdfUrl) {
-    if (state.isLoading) {
-      return Center(child: CircularProgressIndicator());
-    }
-
-    if (pdfUrl == null || pdfUrl.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 64, color: Colors.red),
-            SizedBox(height: 16),
-            Text(
-              "PDF not available",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text(
-              "The PDF file could not be loaded",
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return SfPdfViewer.network(
-      pdfUrl,
-      canShowHyperlinkDialog: true,
-      onDocumentLoaded: (PdfDocumentLoadedDetails details) {
-        log("PDF loaded successfully");
-      },
-      onDocumentLoadFailed: (PdfDocumentLoadFailedDetails details) {
-        log("PDF load failed: ${details.error}");
-      },
-    );
-  }
-
-
-
-  Future<void> _downloadPdf(BuildContext context, String url) async {
-    final fileName = "patientpdf";
-
-    // Request permission
-    final status = await Permission.storage.request();
-    if (!status.isGranted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Storage permission is required',selectionColor: Colors.blue,)),
-      );
-      return;
-    }
-
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        Directory? dir;
-        if (Platform.isAndroid) {
-          dir = Directory('/storage/emulated/0/Download');
-        } else {
-          dir = await getApplicationDocumentsDirectory();
-        }
-
-        final filePath = '${dir.path}/$fileName';
-        final file = File(filePath);
-        await file.writeAsBytes(response.bodyBytes);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded to $filePath')),
-        );
-      } else {
-        throw Exception('Failed to download');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download failed: $e')),
-      );
-    }
-  }
-
-
   fetchWebViewDialog() {
     WebViewController controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
@@ -632,7 +546,6 @@ class PatientNotifier extends StateNotifier<PatientState> {
       url =
           "https://jgtwbdemr2.execute-api.ap-south-1.amazonaws.com/V1/NumberPushApi?agentID=2711002&dstNum=$phoneNumber&authId=3996c82aa955ab45fcc76f39d217f371&data=${patientID ?? state.userInfo?.userGuid}";
     } else {
-      print("IN");
       url =
           "https://jgtwbdemr2.execute-api.ap-south-1.amazonaws.com/V1/NumberPushApi?agentID=2711001&dstNum=$phoneNumber&authId=3996c82aa955ab45fcc76f39d217f371&data=${patientID ?? state.userInfo?.userGuid}";
     }

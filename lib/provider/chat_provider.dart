@@ -156,16 +156,41 @@ class ChatNotifier extends StateNotifier<ChatState> {
     });
 
     socket.on('receive_message', (data) {
-      log(data.toString());
+      log("ReceivedMessage${data.toString()}");
       if (data['isGroupChat'] == true) {
-        _handleIncomingGroupMessage(data);
+        // _handleIncomingGroupMessage(data);
       } else {
-        _handleIncomingMessage(data);
+        // _handleIncomingMessage(data);
       }
     });
 
     socket.on('message_delivered', (data) {
       _updateMessageDeliveryStatus(data['messageId'], isDelivered: true);
+    });
+
+
+    socket.on('editMessage', (data) {
+      try {
+        final messageData = data is String ? jsonDecode(data) : data;
+        final editedMessage = GroupMessage.fromJson(messageData);
+
+        _handleMessageEdit(editedMessage);
+      } catch (e) {
+        print('Error handling editMessage socket event: $e');
+      }
+    });
+
+    socket.on('deleteMessage', (data) {
+      try {
+        final messageData = data is String ? jsonDecode(data) : data;
+        final deletedMessageId = messageData['messageId'] as int?;
+
+        if (deletedMessageId != null) {
+          _handleMessageDelete(deletedMessageId);
+        }
+      } catch (e) {
+        print('Error handling deleteMessage socket event: $e');
+      }
     });
 
 
@@ -219,26 +244,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     return GroupMessage(
       messageID: data['MessageID'] ?? data['messageID'] ?? 0,
-      chatID: data['ChatID'] ??
-          data['chatID'] ??
-          data['groupID'] ??
-          data['GroupID'] ??
-          0,
+      chatID: data['ChatID'] ?? data['chatID'] ?? data['groupID'] ?? data['GroupID'] ?? 0,
       senderID: data['SenderID'] ?? data['senderID'] ?? 0,
       receiverID: data['ReceiverID'] ?? data['receiverID'],
       attachment: data['attachment'] ?? '',
       uploadedUrls: data['uploadedUrls'] ?? [],
       content: data['Content'] ?? data['content'] ?? '',
-      sentAt: data['SentAt'] != null
-          ? DateTime.parse(data['SentAt'])
-          : data['sentAt'] != null
-              ? DateTime.parse(data['sentAt'])
-              : DateTime.now(),
+      sentAt: data['SentAt'] != null ? DateTime.parse(data['SentAt']) : data['sentAt'] != null ? DateTime.parse(data['sentAt']) : DateTime.now(),
       isDeleted: data['IsDeleted'] ?? data['isDeleted'] ?? false,
       isPinned: data['IsPinned'] ?? data['isPinned'] ?? false,
       isSeenBySender: data['IsSeenBySender'] ?? data['isSeenBySender'] ?? true,
-      isSeenByReceiver:
-          data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
+      isSeenByReceiver: data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
       groupID: data['groupID'] ?? data['GroupID'] ?? 0,
       isSeenAll: data['isSeenAll'] ?? data['IsSeenAll'] ?? 0,
       author: data['author'] ?? data['Author'] ?? 'Unknown',
@@ -262,25 +278,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     return preparedFiles;
   }
 
-  void _handleIncomingGroupMessage(dynamic data) {
-    try {
-      final groupMessage = _mapToGroupMessage(data);
-      _addGroupMessageToState(groupMessage);
-    } catch (e, stackTrace) {
-      log('Error processing received group message: $e');
-      log('Stack trace: $stackTrace');
-    }
-  }
-
-  void _handleIncomingMessage(dynamic data) {
-    try {
-      final message = _mapToMessage(data);
-      _addMessageToState(message, prepend: true);
-    } catch (e, stackTrace) {
-      log('Error processing received message: $e');
-      log('Stack trace: $stackTrace');
-    }
-  }
 
   MessageType _stringToMessageType(String type) {
     switch (type.toLowerCase()) {
@@ -297,62 +294,198 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  void _addMessageToState(Message message, {bool prepend = true}) {
-    if (message.chatID == null) {
-      return;
-    }
 
-    final existingMessageIndex =
-        state.messages.indexWhere((m) => m.messageID == message.messageID);
+  void _addMessageToState(Message message, {bool prepend = true}) {
+    final existingMessageIndex = state.messages.indexWhere((m) => m.messageID == message.messageID);
+    final updatedMessages = List<Message>.from(state.messages);
 
     if (existingMessageIndex != -1) {
-      final updatedMessages = List<Message>.from(state.messages);
       updatedMessages[existingMessageIndex] = message;
-      state = state.copyWith(messages: updatedMessages);
     } else {
-      final updatedMessages = List<Message>.from(state.messages);
-      if (prepend) {
-        updatedMessages.insert(0, message);
-      } else {
-        updatedMessages.add(message);
+      // Binary search for optimal insertion in descending order
+      int low = 0;
+      int high = updatedMessages.length;
+
+      while (low < high) {
+        int mid = (low + high) ~/ 2;
+        if (message.sentAt.isAfter(updatedMessages[mid].sentAt)) {
+          high = mid;
+        } else {
+          low = mid + 1;
+        }
       }
-      updatedMessages.sort((a, b) => b.sentAt.compareTo(a.sentAt));
-      state = state.copyWith(messages: updatedMessages);
+      updatedMessages.insert(low, message);
     }
+    state = state.copyWith(messages: updatedMessages);
   }
 
   void _addGroupMessageToState(GroupMessage message) {
-    final existingIndex =
-    state.groupMessages.indexWhere((m) => m.messageID == message.messageID);
+    final existingIndex = state.groupMessages.indexWhere((m) => m.messageID == message.messageID);
+    final updatedMessages = List<GroupMessage>.from(state.groupMessages);
 
     if (existingIndex != -1) {
-      final updatedMessages = List<GroupMessage>.from(state.groupMessages);
+      // Update existing message
       updatedMessages[existingIndex] = message;
-
-      updatedMessages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
-      state = state.copyWith(groupMessages: updatedMessages);
     } else {
-      final updatedMessages = List<GroupMessage>.from(state.groupMessages);
-      _insertMessageChronological(updatedMessages, message);
-      state = state.copyWith(groupMessages: updatedMessages);
-    }
-  }
+      // Binary search to insert in descending order (newest first)
+      int low = 0;
+      int high = updatedMessages.length;
 
-  void _insertMessageChronological(List<GroupMessage> messages, GroupMessage newMessage) {
-    int low = 0;
-    int high = messages.length;
-
-    while (low < high) {
-      final mid = (low + high) ~/ 2;
-      if (newMessage.sentAt.compareTo(messages[mid].sentAt) < 0) {
-        high = mid;
-      } else {
-        low = mid + 1;
+      while (low < high) {
+        int mid = (low + high) ~/ 2;
+        if (message.sentAt.isAfter(updatedMessages[mid].sentAt)) {
+          low = mid + 1; // Go to right half for descending order
+        } else {
+          high = mid;    // Go to left half
+        }
       }
+      updatedMessages.insert(low, message);
     }
 
-    messages.insert(low, newMessage);
+    state = state.copyWith(groupMessages: updatedMessages);
   }
+
+  
+
+
+// Fixed send message methods
+  Future<void> sendMessage({
+    required String author,
+    required List<dynamic> uploadUrl,
+    required String content,
+    required int receiverId,
+    required int chatId,
+    MessageType type = MessageType.text,
+    List<PlatformFile>? selectedFiles,
+  }) async {
+    try {
+      await _getCurrentUserId();
+
+      List<Map<String, dynamic>>? formDataList;
+      if (selectedFiles != null && selectedFiles.isNotEmpty) {
+        formDataList = await _prepareFiles(selectedFiles);
+      }
+
+      // Generate a temporary message ID for optimistic UI
+      final tempMessageId = DateTime.now().millisecondsSinceEpoch;
+
+      final messageData = {
+        "author": author,
+        "receiverID": receiverId,
+        "groupID": '',
+        "SenderID": _currentUserId,
+        "Content": content,
+        "SentAt": DateTime.now().toIso8601String(),
+        "IsDeleted": false,
+        "IsPinned": false,
+        "isGroupChat": false,
+        "uploadedUrls": uploadUrl,
+        "error": '',
+        // Add temporary ID for state management
+        "messageID": tempMessageId,
+        "chatID": chatId,
+      };
+
+      print("messageData$messageData");
+
+      // Create temporary message for optimistic UI
+      final tempMessage = Message(
+        messageID: tempMessageId,
+        chatID: chatId,
+        senderID: state.currentUserId!,
+        receiverID: receiverId,
+        attachment: '',
+        content: content,
+        sentAt: DateTime.now(),
+        isDeleted: false,
+        isPinned: false,
+        uploadedUrls: uploadUrl.cast<String>(),
+      );
+
+      // Add to state immediately for optimistic UI
+      _addMessageToState(tempMessage);
+
+      // Emit socket event
+      socket.emit('send_message', messageData);
+
+    } catch (error) {
+      log('Send message error: $error');
+      state = state.copyWith(
+        error: 'Failed to send message: ${error.toString()}',
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> sendGroupMessage({
+    required String author,
+    required List<dynamic> uploadUrl,
+    required String content,
+    required int groupId,
+    MessageType type = MessageType.text,
+    List<PlatformFile>? selectedFiles,
+  }) async {
+    try {
+      await _getCurrentUserId();
+
+      List<Map<String, dynamic>>? formDataList;
+      if (selectedFiles != null && selectedFiles.isNotEmpty) {
+        formDataList = await _prepareFiles(selectedFiles);
+      }
+
+      // Generate a temporary message ID for optimistic UI
+      final tempMessageId = DateTime.now().millisecondsSinceEpoch;
+
+      final messageData = {
+        "author": author,
+        "receiverID": _currentUserId,
+        "groupID": groupId,
+        "SenderID": _currentUserId,
+        "Content": content,
+        "SentAt": DateTime.now().toIso8601String(),
+        "IsDeleted": false,
+        "IsPinned": false,
+        "isGroupChat": true,
+        "uploadedUrls": uploadUrl ?? [],
+        "error": '',
+        // Add temporary ID for state management
+        "messageID": tempMessageId,
+      };
+
+      // Create temporary message for optimistic UI
+      final tempMessage = GroupMessage(
+        messageID: tempMessageId,
+        groupID: groupId,
+        senderID: state.currentUserId!,
+        content: content,
+        sentAt: DateTime.now(),
+        isDeleted: false,
+        isPinned: false,
+        uploadedUrls: (uploadUrl ?? []).cast<String>(),
+        author: author,
+        attachment: '',
+        isSeenAll: 0,
+        isSeenByReceiver: false,
+        isSeenBySender: false,
+        chatID: 0,
+        receiverID: _currentUserId,
+      );
+
+      // Add to state immediately for optimistic UI
+      _addGroupMessageToState(tempMessage);
+
+      // Emit socket event
+      socket.emit('send_message', messageData);
+
+    } catch (error) {
+      log('Send group message error: $error');
+      state = state.copyWith(
+        error: 'Failed to send group message: ${error.toString()}',
+      );
+      rethrow;
+    }
+  }
+
 
   Future<void> loadSingleChatUsers() async {
     state = state.copyWith(chatListLoading: true, error: null);
@@ -370,20 +503,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
         throw Exception('Missing encrypted data or IV');
       }
 
-      final res = ApiService().decryptData(encryptedData, iv);
+      final result = ApiService().decryptData(encryptedData, iv);
 
-      if (res != null) {
+      log("result$result");
+      if (result != null) {
         List<dynamic> usersData;
-        if (res is Map && res.containsKey('userList')) {
-          usersData = res['userList'] as List;
-        } else if (res is List) {
-          usersData = res;
+        if (result is Map && result.containsKey('userList')) {
+          usersData = result['userList'] as List;
+        } else if (result is List) {
+          usersData = result;
         } else {
-          throw Exception('Unexpected response format: ${res.runtimeType}');
+          throw Exception('Unexpected response format}');
         }
 
-        final users =
-            usersData.map((userData) => ChatUser.fromJson(userData)).toList();
+        final users = usersData.map((userData) => ChatUser.fromJson(userData)).toList();
         state =
             state.copyWith(chats: users, chatListLoading: false, error: null);
       } else {
@@ -391,6 +524,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     } catch (error) {
       log('Error loading chats: $error');
+
       state = state.copyWith(
           chatListLoading: false,
           error: 'Failed to load chats: ${error.toString()}');
@@ -399,8 +533,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> loadMessages(String chatId, int userId) async {
     _currentChatId = chatId;
-    state = state.copyWith(
-        chatMsgLoading: true, currentChatId: chatId, error: null);
+    state = state.copyWith(chatMsgLoading: true, currentChatId: chatId, error: null);
 
     try {
       socket.emit('join_chat', {
@@ -422,63 +555,53 @@ class ChatNotifier extends StateNotifier<ChatState> {
         throw Exception('Missing encrypted data or IV');
       }
 
-      final res = ApiService().decryptData(encryptedData, iv);
+      final decrypted = ApiService().decryptData(encryptedData, iv);
 
-      if (res != null) {
-        final messagesList =
-            (res as List).map((m) => Message.fromJson(m)).toList();
+      if (decrypted != null) {
+        // Handle different response formats
+        List<Message> messagesList = [];
+
+        if (decrypted is List) {
+          // Direct list of messages
+          messagesList = (decrypted as List).map((m) => Message.fromJson(m)).toList();
+        } else if (decrypted is Map<String, dynamic>) {
+          // Check for common response structures
+          if (decrypted['data'] is List) {
+            // Response with 'data' key containing the list
+            messagesList = (decrypted['data'] as List).map((m) => Message.fromJson(m)).toList();
+          } else if (decrypted['messages'] is List) {
+            // Response with 'messages' key containing the list
+            messagesList = (decrypted['messages'] as List).map((m) => Message.fromJson(m)).toList();
+          } else if (decrypted['result'] is List) {
+            // Response with 'result' key containing the list
+            messagesList = (decrypted['result'] as List).map((m) => Message.fromJson(m)).toList();
+          } else {
+            // Try to parse the entire map as a single message or look for other structures
+            throw Exception('Unexpected response format: ${decrypted.keys}');
+          }
+        } else {
+          throw Exception('Unexpected decrypted data type: ${decrypted.runtimeType}');
+        }
+
+        // Sort messages by sentAt in descending order (newest first)
         messagesList.sort((a, b) => b.sentAt.compareTo(a.sentAt));
+
         state = state.copyWith(
-            messages: messagesList, chatMsgLoading: false, error: null);
+            messages: messagesList,
+            chatMsgLoading: false,
+            error: null
+        );
+
         markMessagesAsRead(chatId);
+
       } else {
         throw Exception('Failed to decrypt response data');
       }
     } catch (error) {
-      log('Error loading messages: $error');
       state = state.copyWith(
           chatMsgLoading: false,
-          error: 'Failed to load messages: ${error.toString()}');
-    }
-  }
-
-  Future<void> sendGroupMessage({
-    required String author,
-    required List<dynamic> uploadUrl,
-    required String content,
-    required int groupId,
-    MessageType type = MessageType.text,
-    List<PlatformFile>? selectedFiles,
-  }) async {
-
-    try {
-      await _getCurrentUserId();
-      List<Map<String, dynamic>>? formDataList;
-      if (selectedFiles != null && selectedFiles.isNotEmpty) {
-        formDataList = await _prepareFiles(selectedFiles);
-      }
-
-      final messageData = {
-        "author": author,
-        "receiverID": _currentUserId,
-        "groupID": groupId,
-        "SenderID": _currentUserId,
-        "Content": content,
-        "SentAt": DateTime.now().toIso8601String(),
-        "IsDeleted": false,
-        "IsPinned": false,
-        "isGroupChat": true,
-        "uploadedUrls": uploadUrl ?? [],
-        "error": '',
-      };
-
-      socket.emit('send_message', messageData);
-    } catch (error) {
-      log('Send group message error: $error');
-      state = state.copyWith(
-        error: 'Failed to send group message: ${error.toString()}',
+          error: 'Failed to load messages: ${error.toString()}'
       );
-      rethrow;
     }
   }
 
@@ -518,49 +641,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
 
-  Future<void> sendMessage({
-    required String author,
-    required List<dynamic> uploadUrl,
-    required String content,
-    required int receiverId,
-    required int chatId,
-    MessageType type = MessageType.text,
-    List<PlatformFile>? selectedFiles,
-  }) async {
-    try {
-      await _getCurrentUserId();
 
-      List<Map<String, dynamic>>? formDataList;
-      if (selectedFiles != null && selectedFiles.isNotEmpty) {
-        formDataList = await _prepareFiles(selectedFiles);
-      }
-
-      final messageData = {
-        "author": author,
-        "receiverID": receiverId,
-        "groupID": '',
-        "SenderID": _currentUserId,
-        "Content": content,
-        "SentAt": DateTime.now().toIso8601String(),
-        "IsDeleted": false,
-        "IsPinned": false,
-        "isGroupChat": false,
-        "uploadedUrls": uploadUrl,
-        "error": '',
-      };
-
-      print("messageData$messageData");
-
-      socket.emit('send_message', messageData);
-      // _addMessageToState(tempMessage);
-    } catch (error) {
-      log('Send message error: $error');
-      state = state.copyWith(
-        error: 'Failed to send message: ${error.toString()}',
-      );
-      rethrow;
-    }
-  }
 
   Future<String> fileToBase64(PlatformFile file) async {
     try {
@@ -827,8 +908,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       if (decrypted is Map<String, dynamic> && decrypted.containsKey('group')) {
         final newGroup = GroupChat.fromJson(decrypted['group']);
-        final updatedGroups = List<GroupChat>.from(state.groups)
-          ..insert(0, newGroup);
+        final updatedGroups = List<GroupChat>.from(state.groups)..insert(0, newGroup);
         state = state.copyWith(groups: updatedGroups, isCreatingGroup: false);
       } else {
         await loadGroups();
@@ -843,6 +923,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
       rethrow;
     }
   }
+
+
+
 
   Future<void> addGrpMember({
     required int GroupID,
@@ -898,11 +981,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
         throw Exception('Missing encrypted data or IV');
       }
 
-      final res = ApiService().decryptData(encryptedData, iv);
+      final result = ApiService().decryptData(encryptedData, iv);
 
-      if (res != null) {
+      if (result != null) {
         final messagesList =
-        (res as List).map((m) => GroupMessage.fromJson(m)).toList();
+        (result as List).map((m) => GroupMessage.fromJson(m)).toList();
         messagesList.sort((a, b) => a.sentAt.compareTo(b.sentAt));
 
         state = state.copyWith(
@@ -1046,6 +1129,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     throw Exception('PlatformFile has no bytes or path');
   }
 
+
   Future<String?> uploadImage(files) async {
     final accessToken = await StorageServices.read('accessToken');
     try {
@@ -1137,6 +1221,191 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return null;
     }
   }
+
+  void _handleMessageEdit(GroupMessage editedMessage) {
+    // Update your state with the edited message
+    final currentMessages = List<GroupMessage>.from(state.messages);
+    final messageIndex = currentMessages.indexWhere((msg) => msg.messageID == editedMessage.messageID);
+
+    if (messageIndex != -1) {
+      currentMessages[messageIndex] = editedMessage;
+      state = state.copyWith(groupMessages: currentMessages);
+
+      // Optional: Show a snackbar or notification
+      // ScaffoldMessenger.of(context).showSnackBar(
+      //   SnackBar(content: Text('Message updated')),
+      // );
+    }
+  }
+
+  void _handleMessageDelete(int deletedMessageId) {
+    // Remove the message from state
+    final currentMessages = List<GroupMessage>.from(state.messages);
+    currentMessages.removeWhere((msg) => msg.messageID == deletedMessageId);
+
+    state = state.copyWith(groupMessages: currentMessages);
+
+    // Optional: Show a snackbar or notification
+    // ScaffoldMessenger.of(context).showSnackBar(
+    //   SnackBar(content: Text('Message deleted')),
+    // );
+  }
+
+// Delete message method
+  Future<void> deleteMessage(int messageId) async {
+    state = state.copyWith(error: null, isLoading: true);
+    try {
+      final payload = {
+        "MessageID": messageId,
+      };
+
+      final response = await ApiService().delete('/chat/messages/delete', payload);
+      final encryptedData = response.data['encryptedData'];
+      final iv = response.data['iv'];
+
+      dynamic decrypted;
+      if (encryptedData != null && iv != null) {
+        decrypted = ApiService().decryptData(encryptedData as String, iv as String);
+      } else {
+        decrypted = response.data;
+      }
+
+      if (decrypted is Map<String, dynamic>) {
+        final success = decrypted['success'] as bool? ?? false;
+        final message = decrypted['message'] as String?;
+
+        if (success) {
+          // Update local state immediately
+          _handleMessageDelete(messageId);
+
+          // Emit socket event if needed
+          socket.emit('messageDeleted', {
+            'messageId': messageId,
+            'deletedBy': state.currentUserId, // Add your current user ID
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+
+          state = state.copyWith(
+            isLoading: false,
+            // successMessage: message ?? 'Message deleted successfully',
+          );
+        } else {
+          state = state.copyWith(
+            isLoading: false,
+            error: message ?? 'Failed to delete message',
+          );
+        }
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Invalid response format from server',
+        );
+      }
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to delete message: ${error.toString()}',
+      );
+      rethrow;
+    }
+  }
+
+// Edit message method
+  Future<void> editMessage(int messageId, String content) async {
+    state = state.copyWith(error: null, isLoading: true);
+    try {
+      final payload = {
+        "MessageID": messageId,
+        "Content": content,
+      };
+
+      final response = await ApiService().put('/chat/messages/edit', payload);
+      log("editMessageResponse$response");
+      final encryptedData = response.data['encryptedData'];
+      final iv = response.data['iv'];
+
+      dynamic decrypted;
+      if (encryptedData != null && iv != null) {
+        decrypted = ApiService().decryptData(encryptedData as String, iv as String);
+      } else {
+        decrypted = response.data;
+      }
+
+      if (decrypted is Map<String, dynamic>) {
+        final success = decrypted['success'] as bool? ?? false;
+        final message = decrypted['message'] as String?;
+        final updatedMessageData = decrypted['data'];
+
+        if (success && updatedMessageData != null) {
+          // Create updated message object
+          final updatedMessage = GroupMessage.fromJson(
+              updatedMessageData is Map<String, dynamic>
+                  ? updatedMessageData
+                  : jsonDecode(updatedMessageData as String)
+          );
+
+          // Update local state immediately
+          _handleMessageEdit(updatedMessage);
+
+          // Emit socket event if needed
+          socket.emit('messageEdited', {
+            'messageId': messageId,
+            'content': content,
+            'editedBy': state.currentUserId, // Add your current user ID
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+
+          state = state.copyWith(
+            isLoading: false,
+            // successMessage: message ?? 'Message updated successfully',
+          );
+        } else {
+          state = state.copyWith(
+            isLoading: false,
+            error: message ?? 'Failed to update message',
+          );
+        }
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Invalid response format from server',
+        );
+      }
+    } catch (error) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to edit message: ${error.toString()}',
+      );
+      rethrow;
+    }
+  }
+
+
+
+  Future<void> checkUserActive(bool active) async {
+    log("callCheckUserActiveStatus$active");
+    try {
+      final body = {
+        "userId": state.currentUserId,
+        "isActive": active
+      };
+
+      final response = await ApiService().post('/chat/users/active', body);
+      final encryptedData = response.data['encryptedData'];
+      final iv = response.data['iv'];
+
+      if (encryptedData != null && iv != null) {
+        dynamic decrypted = ApiService().decryptData(encryptedData as String, iv as String);
+        log("activelog${decrypted}");
+      }
+    } catch (error) {
+      state = state.copyWith(
+        error: 'Failed to create group: ${error.toString()}',
+      );
+      rethrow;
+    }
+  }
+
 }
 
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {

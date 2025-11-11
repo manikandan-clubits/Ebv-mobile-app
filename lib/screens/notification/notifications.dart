@@ -1,102 +1,33 @@
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../enums.dart';
+import '../../models/notification_model.dart';
+import '../../provider/notification_provider.dart';
 
-class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+
+class Notifications extends ConsumerStatefulWidget {
+  const Notifications({super.key});
 
   @override
-  State<NotificationsScreen> createState() => _NotificationsScreenState();
+  ConsumerState createState() => _NotificationsState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen> {
-  final List<NotificationItem> _notifications = [
-    NotificationItem(
-      id: '1',
-      title: 'Appointment Reminder',
-      message: 'Your dental appointment with Dr. Smith is scheduled for tomorrow at 2:00 PM',
-      type: NotificationType.appointment,
-      time: DateTime.now().subtract(Duration(minutes: 5)),
-      isRead: false,
-    ),
-    NotificationItem(
-      id: '2',
-      title: 'Payment Successful',
-      message: 'Your payment of \$150 for the cleaning service has been processed successfully',
-      type: NotificationType.payment,
-      time: DateTime.now().subtract(Duration(hours: 2)),
-      isRead: false,
-    ),
-    NotificationItem(
-      id: '3',
-      title: 'New Message',
-      message: 'You have a new message from the dental clinic regarding your treatment plan',
-      type: NotificationType.message,
-      time: DateTime.now().subtract(Duration(hours: 5)),
-      isRead: true,
-    ),
-    NotificationItem(
-      id: '4',
-      title: 'Prescription Ready',
-      message: 'Your prescription for pain medication is ready for pickup',
-      type: NotificationType.medical,
-      time: DateTime.now().subtract(Duration(days: 1)),
-      isRead: true,
-    ),
-    NotificationItem(
-      id: '5',
-      title: 'Insurance Update',
-      message: 'Your insurance claim for the recent procedure has been approved',
-      type: NotificationType.insurance,
-      time: DateTime.now().subtract(Duration(days: 2)),
-      isRead: true,
-    ),
-    NotificationItem(
-      id: '6',
-      title: 'System Maintenance',
-      message: 'The app will undergo maintenance tonight from 2:00 AM to 4:00 AM',
-      type: NotificationType.system,
-      time: DateTime.now().subtract(Duration(days: 3)),
-      isRead: true,
-    ),
-    NotificationItem(
-      id: '7',
-      title: 'Welcome to Dentiverify!',
-      message: 'Thank you for joining Dentiverify. Start exploring our features now!',
-      type: NotificationType.welcome,
-      time: DateTime.now().subtract(Duration(days: 7)),
-      isRead: true,
-    ),
-  ];
+class _NotificationsState extends ConsumerState<Notifications> {
 
-  void _markAsRead(String id) {
-    setState(() {
-      final index = _notifications.indexWhere((item) => item.id == id);
-      if (index != -1) {
-        _notifications[index] = _notifications[index].copyWith(isRead: true);
-      }
-    });
-  }
-
-  void _markAllAsRead() {
-    setState(() {
-      for (int i = 0; i < _notifications.length; i++) {
-        if (!_notifications[i].isRead) {
-          _notifications[i] = _notifications[i].copyWith(isRead: true);
-        }
-      }
-    });
-  }
-
-  void _clearAllNotifications() {
-    setState(() {
-      _notifications.clear();
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(notificationProvider.notifier).getNotifications();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final unreadCount = _notifications.where((item) => !item.isRead).length;
+    final notificationState = ref.watch(notificationProvider);
+    final notifications = notificationState.notificationList;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -112,94 +43,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.black87),
         actions: [
-          if (unreadCount > 0)
+          if (notifications.isNotEmpty)
             IconButton(
-              icon: Badge(
-                label: Text(unreadCount.toString()),
-                child: Icon(Icons.mark_email_read),
-              ),
-              onPressed: _markAllAsRead,
-              tooltip: 'Mark all as read',
+              icon: Icon(Icons.delete_sweep_rounded),
+              onPressed: () {
+                ref.read(notificationProvider.notifier).clearAll();
+              },
+              tooltip: 'Clear all notifications',
             ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'clear_all') {
-                _clearAllNotifications();
-              } else if (value == 'mark_all_read') {
-                _markAllAsRead();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'mark_all_read',
-                child: Row(
-                  children: [
-                    Icon(Icons.mark_email_read, size: 20),
-                    SizedBox(width: 8),
-                    Text('Mark all as read'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'clear_all',
-                child: Row(
-                  children: [
-                    Icon(Icons.clear_all, size: 20, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Clear all', style: TextStyle(color: Colors.red)),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ],
       ),
-      body: _notifications.isEmpty
-          ? _buildEmptyState()
-          : Column(
+      body: notificationState.isLoading
+          ? _buildLoadingState()
+          : notifications.isEmpty
+          ? _buildEmptyState(ref)
+          : _buildNotificationsList(notifications, ref),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Header with unread count
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            color: Colors.white,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Notifications',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${_notifications.length} total',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.blue.shade800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Notifications List
-          Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.only(bottom: 20),
-              itemCount: _notifications.length,
-              itemBuilder: (context, index) {
-                final notification = _notifications[index];
-                return _buildNotificationCard(notification);
-              },
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text(
+            'Loading notifications...',
+            style: TextStyle(
+              color: Colors.grey.shade600,
             ),
           ),
         ],
@@ -207,9 +79,115 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildNotificationCard(NotificationItem notification) {
+  Widget _buildEmptyState(WidgetRef ref) { // Fixed: Added WidgetRef parameter
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.notifications_off_rounded,
+              size: 50,
+              color: Colors.blue.shade300,
+            ),
+          ),
+          SizedBox(height: 24),
+          Text(
+            'No Notifications',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            'You\'re all caught up!',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () {
+              ref.read(notificationProvider.notifier).loadSampleData();
+            },
+            icon: Icon(Icons.refresh_rounded),
+            label: Text('Load Sample Notifications'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade50,
+              foregroundColor: Colors.blue.shade800,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationsList(List<NotificationItem> notifications, WidgetRef ref) { // Fixed: Added proper parameters
+    return Column(
+      children: [
+        // Header with counts
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          color: Colors.white,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Recent Notifications',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${notifications.length} total • ${ref.read(notificationProvider).unreadCount} unread',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue.shade800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Notifications List
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.only(bottom: 20),
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              return _buildNotificationCard(notification, ref); // Fixed: Pass ref here
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotificationCard(NotificationItem notification, WidgetRef ref) { // Fixed: Added proper parameters
     return Dismissible(
-      key: Key(notification.id),
+      key: Key(notification.id.toString()),
       direction: DismissDirection.endToStart,
       background: Container(
         color: Colors.red.shade50,
@@ -217,26 +195,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         padding: EdgeInsets.only(right: 20),
         child: Icon(Icons.delete_outline, color: Colors.red, size: 24),
       ),
-      onDismissed: (direction) {
-        setState(() {
-          _notifications.removeWhere((item) => item.id == notification.id);
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Notification deleted'),
-            action: SnackBarAction(
-              label: 'Undo',
-              onPressed: () {
-                setState(() {
-                  _notifications.insert(
-                    _notifications.indexWhere((item) => item.id.compareTo(notification.id) > 0),
-                    notification,
-                  );
-                });
-              },
-            ),
-          ),
-        );
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.endToStart) {
+          return await _showDeleteConfirmation(context, notification, ref); // Fixed: Pass context and ref
+        }
+        return false;
       },
       child: Container(
         margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -245,13 +208,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           borderRadius: BorderRadius.circular(16),
           elevation: 1,
           child: InkWell(
-            onTap: () => _markAsRead(notification.id),
+            onTap: () {
+              if (!notification.isRead!) {
+                ref.read(notificationProvider.notifier).markAsRead(notification.id);
+              }
+              _showNotificationDetails(context, notification); // Fixed: Pass context
+            },
             borderRadius: BorderRadius.circular(16),
             child: Container(
               padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
                 border: Border.all(
-                  color: notification.isRead ? Colors.transparent : Colors.blue.shade100,
+                  color: notification.isRead! ? Colors.transparent : Colors.blue.shade100,
                   width: 1.5,
                 ),
                 borderRadius: BorderRadius.circular(16),
@@ -290,7 +258,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     notification.title,
                                     style: TextStyle(
                                       fontSize: 15,
-                                      fontWeight: notification.isRead ? FontWeight.w500 : FontWeight.w600,
+                                      fontWeight: notification.isRead! ? FontWeight.w500 : FontWeight.w600,
                                       color: Colors.black87,
                                     ),
                                     maxLines: 1,
@@ -307,10 +275,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                  if (notification.patientName.isNotEmpty) ...[
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Patient: ${notification.patientName}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade500,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
-                            if (!notification.isRead)
+                            if (!notification.isRead!)
                               Container(
                                 width: 8,
                                 height: 8,
@@ -323,7 +302,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ),
                         SizedBox(height: 8),
                         Text(
-                          _formatTime(notification.time),
+                          _formatTime(notification.createdAt),
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.grey.shade500,
@@ -342,67 +321,75 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: Colors.blue.shade50,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.notifications_off_rounded,
-              size: 50,
-              color: Colors.blue.shade300,
+  Future<bool> _showDeleteConfirmation(BuildContext context, NotificationItem notification, WidgetRef ref) async { // Fixed: Added proper parameters
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Notification'),
+        content: Text('Are you sure you want to delete this notification?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
             ),
           ),
-          SizedBox(height: 24),
-          Text(
-            'No Notifications',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'You\'re all caught up!',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              // Add some sample notifications
-              setState(() {
-                _notifications.addAll([
-                  NotificationItem(
-                    id: '8',
-                    title: 'New Feature Available',
-                    message: 'Check out the new appointment scheduling feature in the app',
-                    type: NotificationType.system,
-                    time: DateTime.now(),
-                    isRead: false,
-                  ),
-                ]);
-              });
-            },
-            icon: Icon(Icons.refresh_rounded),
-            label: Text('Load Sample Notifications'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade50,
-              foregroundColor: Colors.blue.shade800,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      ref.read(notificationProvider.notifier).deleteNotification(notification.id);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Notification deleted'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return true;
+    }
+    return false;
+  }
+
+  void _showNotificationDetails(BuildContext context, NotificationItem notification) { // Fixed: Added context parameter
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(notification.title),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                notification.message,
+                style: TextStyle(fontSize: 14),
               ),
-            ),
+              SizedBox(height: 16),
+              if (notification.patientName.isNotEmpty)
+                Text('Patient: ${notification.patientName}'),
+              if (notification.patientId != null)
+                Text('Patient ID: ${notification.patientId}'),
+              SizedBox(height: 8),
+              Text(
+                'Received: ${DateFormat('MMM dd, yyyy • HH:mm').format(notification.createdAt)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Close'),
           ),
         ],
       ),
@@ -411,43 +398,39 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Color _getNotificationColor(NotificationType type) {
     switch (type) {
-      case NotificationType.appointment:
+      case NotificationType.success:
         return Colors.green;
-      case NotificationType.payment:
+      case NotificationType.technical:
         return Colors.orange;
-      case NotificationType.message:
-        return Colors.blue;
-      case NotificationType.medical:
+      case NotificationType.notLinked:
         return Colors.red;
-      case NotificationType.insurance:
-        return Colors.purple;
+      case NotificationType.invalidDemographic:
+        return Colors.amber;
+      case NotificationType.patientUpdate:
+        return Colors.blue;
+      case NotificationType.patientDelete:
+        return Colors.red;
       case NotificationType.system:
         return Colors.grey;
-      case NotificationType.welcome:
-        return Colors.teal;
-      default:
-        return Colors.blue;
     }
   }
 
   IconData _getNotificationIcon(NotificationType type) {
     switch (type) {
-      case NotificationType.appointment:
-        return Icons.calendar_today_rounded;
-      case NotificationType.payment:
-        return Icons.payment_rounded;
-      case NotificationType.message:
-        return Icons.message_rounded;
-      case NotificationType.medical:
-        return Icons.medical_services_rounded;
-      case NotificationType.insurance:
-        return Icons.verified_user_rounded;
+      case NotificationType.success:
+        return Icons.check_circle_rounded;
+      case NotificationType.technical:
+        return Icons.error_outline_rounded;
+      case NotificationType.notLinked:
+        return Icons.link_off_rounded;
+      case NotificationType.invalidDemographic:
+        return Icons.person_off_rounded;
+      case NotificationType.patientUpdate:
+        return Icons.edit_note_rounded;
+      case NotificationType.patientDelete:
+        return Icons.delete_forever_rounded;
       case NotificationType.system:
         return Icons.settings_rounded;
-      case NotificationType.welcome:
-        return Icons.celebration_rounded;
-      default:
-        return Icons.notifications_rounded;
     }
   }
 
@@ -466,51 +449,5 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } else {
       return DateFormat('MMM dd, yyyy').format(time);
     }
-  }
-}
-
-enum NotificationType {
-  appointment,
-  payment,
-  message,
-  medical,
-  insurance,
-  system,
-  welcome,
-}
-
-class NotificationItem {
-  final String id;
-  final String title;
-  final String message;
-  final NotificationType type;
-  final DateTime time;
-  final bool isRead;
-
-  NotificationItem({
-    required this.id,
-    required this.title,
-    required this.message,
-    required this.type,
-    required this.time,
-    required this.isRead,
-  });
-
-  NotificationItem copyWith({
-    String? id,
-    String? title,
-    String? message,
-    NotificationType? type,
-    DateTime? time,
-    bool? isRead,
-  }) {
-    return NotificationItem(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      message: message ?? this.message,
-      type: type ?? this.type,
-      time: time ?? this.time,
-      isRead: isRead ?? this.isRead,
-    );
   }
 }
