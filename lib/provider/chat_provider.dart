@@ -130,13 +130,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void connectToSocket() {
+    print("callconnectToSocket");
     socket = IO.io(
       'https://dev-ebv-backend-ffafgsdhg8chbvcy.southindia-01.azurewebsites.net',
       <String, dynamic>{
         'transports': ['websocket'],
         'autoConnect': true,
+        'forceNew': true
       },
     );
+
+    socket.onAny((event, data) {
+      log('Socket event: $event - Data: $data');
+    });
 
     socket.onConnect((_) {
       log('Connected to server');
@@ -147,6 +153,26 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     });
 
+
+    socket.on('send_message', (data) {
+      log("Send message acknowledgment: ${data.toString()}");
+    });
+
+
+    socket.on('receive_message', (data) {
+      log("ReceivedMessage${data.toString()}");
+      if (data['isGroupChat'] == true) {
+        // _handleIncomingGroupMessage(data);
+      } else {
+        _handleIncomingMessage(data);
+      }
+    });
+
+    socket.onError((error) {
+      log('Socket error: $error');
+    });
+
+
     socket.onDisconnect((_) {
       state = state.copyWith(isConnected: false);
     });
@@ -155,14 +181,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       state = state.copyWith(isConnected: false);
     });
 
-    socket.on('receive_message', (data) {
-      log("ReceivedMessage${data.toString()}");
-      if (data['isGroupChat'] == true) {
-        // _handleIncomingGroupMessage(data);
-      } else {
-        // _handleIncomingMessage(data);
-      }
-    });
+
 
     socket.on('message_delivered', (data) {
       _updateMessageDeliveryStatus(data['messageId'], isDelivered: true);
@@ -199,12 +218,40 @@ class ChatNotifier extends StateNotifier<ChatState> {
     });
   }
 
+
+  void debugSocketState() {
+    log('''
+🔍 ChatNotifier Debug:
+- Socket Connected: ${socket.connected}
+- Current User ID: $_currentUserId
+- Messages in state: ${state.messages.length}
+- Chats in state: ${state.chats.length}
+- Socket ID: ${socket.id}
+''');
+  }
+
+
   @override
   void dispose() {
     leaveChat();
-    socket.disconnect();
+    if (socket.connected) {
+      socket.disconnect();
+    }
     super.dispose();
   }
+
+
+  void _handleIncomingMessage(dynamic data) {
+    print("call_handleIncomingMessage");
+    try {
+      final message = _mapToMessage(data);
+      _addMessageToState(message, prepend: true);
+    } catch (e, stackTrace) {
+      log('Error processing received message: $e');
+      log('Stack trace: $stackTrace');
+    }
+  }
+
 
   Message _mapToMessage(dynamic data) {
     log("data$data");
@@ -294,6 +341,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  // void _handleIncomingMessage(Map<String, dynamic> data) {
+  //   try {
+  //     final message = Message.fromJson(data);
+  //     final isCurrentChat = (message.senderID == state.currentUserId );
+  //     if (isCurrentChat) {
+  //       _addMessageToState(message);
+  //     }
+  //
+  //   } catch (e) {
+  //     log('Error handling incoming message: $e');
+  //   }
+  // }
 
   void _addMessageToState(Message message, {bool prepend = true}) {
     final existingMessageIndex = state.messages.indexWhere((m) => m.messageID == message.messageID);

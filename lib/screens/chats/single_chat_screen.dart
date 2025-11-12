@@ -717,12 +717,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            widget.chat!.isActive ? 'Online' : 'Offline',
+                            widget.chat!.isActive ? 'Online' : 'Away',
                             style: TextStyle(
                               fontSize: 12,
                               color: widget.chat!.isActive
                                   ? Colors.green.shade600
-                                  : Colors.grey.shade600,
+                                  : Colors.yellow.shade600,
                               fontWeight: FontWeight.w500,
                             ),
                           ),

@@ -18,6 +18,7 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
   late TabController _tabController;
   bool _isMounted = false;
   late final ChatNotifier chatNotifier;
+
   @override
   void initState() {
     super.initState();
@@ -27,7 +28,6 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     _tabController.addListener(_handleTabChange);
     WidgetsBinding.instance.addObserver(this);
 
-    print("callEverySeconds");
     chatNotifier = ref.read(chatProvider.notifier);
     chatNotifier.checkUserActive(true);
 
@@ -91,7 +91,6 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
 
   @override
   Widget build(BuildContext context) {
-    ref.read(chatProvider.notifier).checkUserActive(true);
     return Scaffold(
       appBar: PreferredSize(
         preferredSize:
