@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:ebv/models/chat_model.dart';
 import 'package:ebv/models/group_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import '../../provider/chat_encrpt_provider.dart';
 import '../../provider/chat_provider.dart';
 import 'group_details.dart';
 import 'package:image_picker/image_picker.dart';
@@ -49,6 +51,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           _showSendButton = _messageController.text.trim().isNotEmpty;
         });
       }
+      _initializeChatKeys();
     });
 
     Future.microtask(() async {
@@ -57,6 +60,18 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       await chatNotifier.loadGroupMembers(widget.group.groupID);
 
     });
+  }
+
+
+  Future<void> _initializeChatKeys() async {
+    final chatKeys = ref.read(chatKeysProvider.notifier);
+    await chatKeys.verifyAuthKeys();
+
+    if (ref.read(chatKeysProvider).senderKeys == null) {
+      await chatKeys.getSenderChatKeys(); // Replace with actual user ID
+    }
+
+    await chatKeys.getReceiverChatKeys();
   }
 
   @override
@@ -89,9 +104,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       urls.add(fileUrl);
     }
 
-    final chatNotifier = ref.read(chatProvider.notifier);
+    final chatState = ref.watch(chatProvider);
 
-    chatNotifier.sendGroupMessage(
+    ref.read(chatProvider.notifier).sendMessage(
+      currentUserId: chatState.currentUserId.toString(),
+      type: MessageType.text,
+      chatId: 0,
       author: widget.group.groupName,
       uploadUrl: urls,
       selectedFiles: _selectedFiles,
@@ -129,21 +147,50 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
   Widget _buildMessageBubble(GroupMessage message, bool isMe) {
     List<String>? getAttachments(GroupMessage msg) {
-      if (msg.uploadedUrls.isNotEmpty) {
-        return List<String>.from(msg.uploadedUrls);
-      }
-
-      if (msg.attachment.isNotEmpty) {
-        try {
-          final parsed = jsonDecode(msg.attachment);
-          if (parsed is List) {
-            return List<String>.from(parsed);
-          } else if (parsed is String && parsed.isNotEmpty) {
-            return [parsed];
+      try {
+        // Handle uploadedUrls - it might be a String, List, or null
+        if (msg.uploadedUrls != null) {
+          if (msg.uploadedUrls is String) {
+            // If it's a string, try to parse it as JSON
+            final String urlString = msg.uploadedUrls as String;
+            if (urlString.trim().isNotEmpty) {
+              try {
+                final parsed = jsonDecode(urlString);
+                if (parsed is List) {
+                  return List<String>.from(parsed.map((e) => e.toString()));
+                } else if (parsed is String) {
+                  return [parsed];
+                }
+              } catch (e) {
+                // If JSON parsing fails, treat it as a single URL string
+                return [urlString];
+              }
+            }
+          } else if (msg.uploadedUrls is List) {
+            // If it's already a list, convert to List<String>
+            final List<dynamic> urlList = msg.uploadedUrls as List<dynamic>;
+            if (urlList.isNotEmpty) {
+              return urlList.map((e) => e.toString()).toList();
+            }
           }
-        } catch (e) {
-          return [msg.attachment];
         }
+
+        // Handle attachment field
+        if (msg.attachment != null && msg.attachment!.isNotEmpty) {
+          final attachment = msg.attachment!;
+          try {
+            final parsed = jsonDecode(attachment);
+            if (parsed is List) {
+              return List<String>.from(parsed.map((e) => e.toString()));
+            } else if (parsed is String) {
+              return [parsed];
+            }
+          } catch (e) {
+            return [attachment];
+          }
+        }
+      } catch (e) {
+        print('Error parsing attachments: $e');
       }
 
       return null;
@@ -155,7 +202,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     final authorInitial = author.isNotEmpty ? author.substring(0, 1).toUpperCase() : '?';
     final content = message.content ?? '';
     final hasContent = content.isNotEmpty;
-    final sentAt = message.sentAt ?? DateTime.now();
+    final sentAt = message.sentAt;
     final formattedTime = _formatMessageTime(sentAt);
 
     return Container(
@@ -289,7 +336,6 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       ),
     );
   }
-
 // Make sure your _formatMessageTime method can handle DateTime
   String _formatMessageTime(DateTime dateTime) {
     // Add null safety to your time formatting method

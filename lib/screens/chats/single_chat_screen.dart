@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../models/chat_model.dart';
+import '../../provider/chat_encrpt_provider.dart';
 import '../../provider/chat_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -54,9 +55,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_isMounted && widget.chat != null) {
+        _initializeChatKeys();
         _loadMessagesSafely();
       }
     });
+  }
+
+
+  Future<void> _initializeChatKeys() async {
+    print("callsinglechatSenderkeys");
+    final chatKeys = ref.read(chatKeysProvider.notifier);
+    await chatKeys.verifyAuthKeys();
+
+    await chatKeys.getReceiverChatKeys(widget.chat!.receiverID!);
+
+    await chatKeys.getSenderChatKeys(); // Replace with actual user ID
+
+    // if (ref.read(chatKeysProvider).senderKeys == null) {
+    //   await chatKeys.getSenderChatKeys(); // Replace with actual user ID
+    // }
+
   }
 
   Future<void> _loadMessagesSafely() async {
@@ -87,13 +105,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       urls = [];
       urls.add(fileUrl);
     }
-
+    final chatState = ref.watch(chatProvider);
     if (_messageController.text.trim().isNotEmpty) {
+
       ref.read(chatProvider.notifier).sendMessage(
+        currentUserId: chatState.currentUserId.toString(),
+          type: MessageType.text,
           uploadUrl: urls,
           author: widget.chatName,
           content: _messageController.text.trim(),
-          receiverId: widget.chat!.userID,
+          receiverId: widget.chat?.receiverID!,
           chatId: int.tryParse(widget.chatId) ?? 0,
           selectedFiles: _selectedFiles);
       _selectedFiles.clear();

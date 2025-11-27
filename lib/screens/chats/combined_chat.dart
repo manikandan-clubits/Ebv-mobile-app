@@ -23,14 +23,27 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _isMounted = true;
-    ref.read(chatProvider.notifier).initializeSocket();
   _tabController.addListener(_handleTabChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatProvider.notifier).initializeSocket();
+      // _initializeChatKeys();
       if (_isMounted) {
         _loadChatsSafely();
       }
     });
   }
+
+  // Future<void> _initializeChatKeys() async {
+  //   final chatKeys = ref.read(chatKeysProvider.notifier);
+  //
+  //   // Get sender keys if not already available
+  //   if (ref.read(chatKeysProvider).senderKeys == null) {
+  //     await chatKeys.getSenderChatKeys(userId: 'current_user_id'); // Replace with actual user ID
+  //   }
+  //
+  //   // Get receiver keys
+  //   await chatKeys.getReceiverChatKeys(recvId: widget.receiverId);
+  // }
 
    void _handleTabChange() {
     if (!_tabController.indexIsChanging && _isMounted) {

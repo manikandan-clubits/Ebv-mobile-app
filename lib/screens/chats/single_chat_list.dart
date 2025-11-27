@@ -65,6 +65,7 @@ class ChatListItem extends ConsumerWidget {
                     chatName:
                     chat.firstName.isNotEmpty ? chat.firstName : 'Unknown',
                     chat: chat,
+
                   ),
                 ),
               );

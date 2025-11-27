@@ -9,10 +9,13 @@ import 'package:socket_io_client/socket_io_client.dart';
 import '../models/chat_model.dart';
 import '../models/group_model.dart';
 import '../services/api_service.dart';
+import '../services/encrption_service.dart';
 import '../services/socket_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../services/storage_services.dart';
 import 'package:flutter/material.dart';
+import 'chat_encrpt_provider.dart';
+import '../services/encryptions.dart';
 
 class ChatState {
   final List<ChatUser> chats;
@@ -110,6 +113,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
   String? _currentChatId;
   String? _currentUserName;
 
+  final EncryptServices _encryptionService = EncryptServices();
+
   ChatNotifier(this.ref, this.socketService) : super(ChatState()) {
     initializeSocket();
     loadSingleChatUsers();
@@ -156,18 +161,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
     });
 
     socket.on('receive_message', (data) {
-      log(data.toString());
-      if (data['isGroupChat'] == true) {
-        _handleIncomingGroupMessage(data);
-      } else {
-        _handleIncomingMessage(data);
-      }
+      print("receiveMessage");
+      _handleIncomingMessage(data);
+    });
+
+    socket.on('message_sent', (data) {
+      print("Message sent confirmation: $data");
+      _handleMessageSentConfirmation(data);
     });
 
     socket.on('message_delivered', (data) {
       _updateMessageDeliveryStatus(data['messageId'], isDelivered: true);
     });
-
 
     socket.on('message_read', (data) {
       _updateMessageDeliveryStatus(data['messageId'], isRead: true);
@@ -186,7 +191,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (data is! Map<String, dynamic>) {
       throw ArgumentError('Invalid message payload');
     }
-    // final uploadedUrls = (data['uploadedUrls'] as List?) ?? [];
 
     return Message(
       messageID: data['MessageID'] ??
@@ -200,15 +204,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
       sentAt: data['SentAt'] != null
           ? DateTime.parse(data['SentAt'])
           : data['sentAt'] != null
-              ? DateTime.parse(data['sentAt'])
-              : DateTime.now(),
+          ? DateTime.parse(data['sentAt'])
+          : DateTime.now(),
       isDeleted: data['IsDeleted'] ?? data['isDeleted'] ?? false,
       isPinned: data['IsPinned'] ?? data['isPinned'] ?? false,
       isSeenBySender: data['IsSeenBySender'] ?? data['isSeenBySender'] ?? true,
       isSeenByReceiver:
-          data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
+      data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
       chatID: data['ChatID'] ?? data['chatID'],
       type: _stringToMessageType(data['type'] ?? 'text'),
+      isGroup: data['isGroupChat'] ?? data['isGroup'] ?? false,
+      iv: data['iv'],
+      encryptedAesKeyForSender: data['encryptedAesKeyForSender'],
+      encryptedAesKeyForReceiver: data['encryptedAesKeyForReceiver'],
+      groupReceivers: data['groupReceiversKeys'] != null
+          ? (data['groupReceiversKeys'] as List).map((e) => Map<String, String>.from(e)).toList()
+          : null,
+      isSending: data['isSending'] ?? false,
+      error: data['error'],
     );
   }
 
@@ -232,16 +245,21 @@ class ChatNotifier extends StateNotifier<ChatState> {
       sentAt: data['SentAt'] != null
           ? DateTime.parse(data['SentAt'])
           : data['sentAt'] != null
-              ? DateTime.parse(data['sentAt'])
-              : DateTime.now(),
+          ? DateTime.parse(data['sentAt'])
+          : DateTime.now(),
       isDeleted: data['IsDeleted'] ?? data['isDeleted'] ?? false,
       isPinned: data['IsPinned'] ?? data['isPinned'] ?? false,
       isSeenBySender: data['IsSeenBySender'] ?? data['isSeenBySender'] ?? true,
       isSeenByReceiver:
-          data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
+      data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
       groupID: data['groupID'] ?? data['GroupID'] ?? 0,
       isSeenAll: data['isSeenAll'] ?? data['IsSeenAll'] ?? 0,
       author: data['author'] ?? data['Author'] ?? 'Unknown',
+      iv: data['iv'],
+      encryptedAesKeyForSender: data['encryptedAesKeyForSender'],
+      groupReceivers: data['groupReceiversKeys'] != null
+          ? (data['groupReceiversKeys'] as List).map((e) => Map<String, String>.from(e)).toList()
+          : null,
     );
   }
 
@@ -262,48 +280,215 @@ class ChatNotifier extends StateNotifier<ChatState> {
     return preparedFiles;
   }
 
-  void _handleIncomingGroupMessage(dynamic data) {
+  Future<void> _handleIncomingMessage(dynamic data) async {
     try {
-      final groupMessage = _mapToGroupMessage(data);
-      _addGroupMessageToState(groupMessage);
-    } catch (e, stackTrace) {
-      log('Error processing received group message: $e');
-      log('Stack trace: $stackTrace');
-    }
-  }
+      print("Processing incoming message: ${data.toString()}");
+      final chatKeysState = ref.read(chatKeysProvider);
+      final senderPrivateKey = chatKeysState.senderKeys?.privateKey;
+      final currentUserId = state.currentUserId;
 
-  void _handleIncomingMessage(dynamic data) {
-    try {
-      final message = _mapToMessage(data);
-      _addMessageToState(message, prepend: true);
+      if (senderPrivateKey == null) {
+        print('Missing sender private key. Cannot decrypt message.');
+        return;
+      }
+
+      if (currentUserId == null) {
+        print('Missing current user ID. Cannot decrypt message.');
+        return;
+      }
+
+      // Convert data to Message object
+      final Map<String, dynamic> messageMap = Map<String, dynamic>.from(data);
+      print("messageMap: $messageMap");
+
+      Message message = Message.fromJson(messageMap);
+      var decryptedContent;
+
+      // Check if message is encrypted
+      final isEncrypted = message.iv != null &&
+          (message.encryptedAesKeyForSender != null ||
+              message.encryptedAesKeyForReceiver != null ||
+              message.groupReceivers != null);
+
+      if (!isEncrypted) {
+        print('Message is not encrypted, using original content');
+        decryptedContent = message.content;
+      } else {
+        // Decrypt the message content based on chat type
+        if (!message.isGroup) {
+          print('Decrypting individual message');
+          print("senderPrivateKey$senderPrivateKey");
+          print("currentUserId$currentUserId");
+          decryptedContent = await EncryptServices.decryptMessage(
+            message,
+            senderPrivateKey,
+            currentUserId,
+          );
+        } else {
+          print('Decrypting group message');
+          decryptedContent = await EncryptServices.decryptMessageGroup(
+            messageData: message,
+            privateKeyRef: senderPrivateKey,
+            currentUserId: currentUserId,
+          );
+        }
+      }
+
+      // Update message with decrypted content
+      final decryptedMessage = Message(
+        messageID: message.messageID,
+        senderID: message.senderID,
+        receiverID: message.receiverID,
+        content: decryptedContent['text'],
+        attachment: message.attachment,
+        uploadedUrls: message.uploadedUrls,
+        sentAt: message.sentAt,
+        isDeleted: message.isDeleted,
+        isPinned: message.isPinned,
+        isSeenBySender: message.isSeenBySender,
+        isSeenByReceiver: message.isSeenByReceiver,
+        chatID: message.chatID,
+        type: message.type,
+        isGroup: message.isGroup,
+        iv: message.iv,
+        encryptedAesKeyForSender: message.encryptedAesKeyForSender,
+        encryptedAesKeyForReceiver: message.encryptedAesKeyForReceiver,
+        groupReceivers: message.groupReceivers,
+        isSending: false,
+        error: null,
+      );
+
+      if (message.isGroup) {
+        _handleGroupMessage(decryptedMessage);
+      } else {
+        _handleIndividualMessage(decryptedMessage);
+      }
     } catch (e, stackTrace) {
       log('Error processing received message: $e');
       log('Stack trace: $stackTrace');
+      state = state.copyWith(
+        error: 'Failed to process incoming message: ${e.toString()}',
+      );
     }
   }
 
-  MessageType _stringToMessageType(String type) {
-    switch (type.toLowerCase()) {
-      case 'image':
-        return MessageType.image;
-      case 'video':
-        return MessageType.video;
-      case 'document':
-        return MessageType.document;
-      case 'audio':
-        return MessageType.audio;
-      default:
-        return MessageType.text;
+  void _handleIndividualMessage(Message message) {
+    try {
+      _addMessageToState(message, prepend: true);
+    } catch (e, stackTrace) {
+      log('Error processing individual message: $e');
+      log('Stack trace: $stackTrace');
+    }
+  }
+
+  void _handleGroupMessage(Message message) {
+    try {
+      _addMessageToState(message, prepend: true);
+    } catch (e, stackTrace) {
+      log('Error processing group message: $e');
+      log('Stack trace: $stackTrace');
+    }
+  }
+
+  // Update the loadMessages method to handle decryption properly
+  Future<void> loadMessages(String chatId, int userId) async {
+    _currentChatId = chatId;
+    state = state.copyWith(
+        chatMsgLoading: true, currentChatId: chatId, error: null);
+
+    try {
+      // Join chat via socket
+      socket.emit('join_chat', {
+        'chatId': chatId,
+        'userId': _currentUserId,
+      });
+
+      final response = await ApiService()
+          .post('/chat/messages/singlelist', {"SelectedUserId": userId});
+
+      if (response.data == null) {
+        throw Exception('No response data received');
+      }
+
+      final encryptedData = response.data['encryptedData'];
+      final iv = response.data['iv'];
+
+      if (encryptedData == null || iv == null) {
+        throw Exception('Missing encrypted data or IV');
+      }
+
+      // Decrypt the main response
+      final result = ApiService().decryptData(encryptedData, iv);
+      if (result != null && result is List) {
+        List<Message> messagesList =
+        (result).map((m) => Message.fromJson(m)).toList();
+        final chatKeysState = ref.read(chatKeysProvider);
+
+        List<Message> decryptedMessages =
+        await Future.wait(messagesList.map((message) async {
+          try {
+            final decryptedContent = await EncryptServices.decryptMessage(
+              message,
+              chatKeysState.senderKeys?.privateKey,
+              state.currentUserId,
+            );
+            log("Decrypted content${decryptedContent['text']}");
+            return Message(
+              messageID: message.messageID,
+              senderID: message.senderID,
+              receiverID: message.receiverID,
+              content: decryptedContent['text'],
+              attachment: message.attachment,
+              uploadedUrls: message.uploadedUrls,
+              sentAt: message.sentAt,
+              isDeleted: message.isDeleted,
+              isPinned: message.isPinned,
+              isSeenBySender: message.isSeenBySender,
+              isSeenByReceiver: message.isSeenByReceiver,
+              chatID: message.chatID,
+              type: message.type,
+              isGroup: message.isGroup,
+              iv: message.iv,
+              encryptedAesKeyForSender: message.encryptedAesKeyForSender,
+              encryptedAesKeyForReceiver: message.encryptedAesKeyForReceiver,
+              groupReceivers: message.groupReceivers,
+              isSending: false,
+              error: null,
+            );
+          } catch (e) {
+            return message; // Return original message if decryption fails
+          }
+        }));
+
+        decryptedMessages.sort((a, b) => b.sentAt.compareTo(a.sentAt));
+
+        // Update state
+        state = state.copyWith(
+          messages: decryptedMessages,
+          chatMsgLoading: false,
+          error: null,
+        );
+
+        markMessagesAsRead(chatId);
+      } else {
+        throw Exception('Failed to decrypt response data');
+      }
+    } catch (error) {
+      log('Error loading messages: $error');
+      state = state.copyWith(
+        chatMsgLoading: false,
+        error: 'Failed to load messages: ${error.toString()}',
+      );
     }
   }
 
   void _addMessageToState(Message message, {bool prepend = true}) {
-    if (message.chatID == null) {
+    if (message.chatID == null && !message.isGroup) {
       return;
     }
 
     final existingMessageIndex =
-        state.messages.indexWhere((m) => m.messageID == message.messageID);
+    state.messages.indexWhere((m) => m.messageID == message.messageID);
 
     if (existingMessageIndex != -1) {
       final updatedMessages = List<Message>.from(state.messages);
@@ -328,7 +513,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (existingIndex != -1) {
       final updatedMessages = List<GroupMessage>.from(state.groupMessages);
       updatedMessages[existingIndex] = message;
-
       updatedMessages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
       state = state.copyWith(groupMessages: updatedMessages);
     } else {
@@ -338,7 +522,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  void _insertMessageChronological(List<GroupMessage> messages, GroupMessage newMessage) {
+  MessageType _stringToMessageType(String type) {
+    switch (type.toLowerCase()) {
+      case 'image':
+        return MessageType.image;
+      case 'video':
+        return MessageType.video;
+      case 'document':
+        return MessageType.document;
+      case 'audio':
+        return MessageType.audio;
+      default:
+        return MessageType.text;
+    }
+  }
+
+  void _insertMessageChronological(
+      List<GroupMessage> messages, GroupMessage newMessage) {
     int low = 0;
     int high = messages.length;
 
@@ -381,9 +581,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         } else {
           throw Exception('Unexpected response format: ${res.runtimeType}');
         }
+        print("usersData$usersData");
 
         final users =
-            usersData.map((userData) => ChatUser.fromJson(userData)).toList();
+        usersData.map((userData) => ChatUser.fromJson(userData)).toList();
         state =
             state.copyWith(chats: users, chatListLoading: false, error: null);
       } else {
@@ -397,94 +598,201 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  Future<void> loadMessages(String chatId, int userId) async {
-    _currentChatId = chatId;
-    state = state.copyWith(
-        chatMsgLoading: true, currentChatId: chatId, error: null);
-
-    try {
-      socket.emit('join_chat', {
-        'chatId': chatId,
-        'userId': _currentUserId,
-      });
-
-      final response = await ApiService()
-          .post('/chat/messages/singlelist', {"SelectedUserId": userId});
-
-      if (response.data == null) {
-        throw Exception('No response data received');
-      }
-
-      final encryptedData = response.data['encryptedData'];
-      final iv = response.data['iv'];
-
-      if (encryptedData == null || iv == null) {
-        throw Exception('Missing encrypted data or IV');
-      }
-
-      final res = ApiService().decryptData(encryptedData, iv);
-
-      if (res != null) {
-        final messagesList =
-            (res as List).map((m) => Message.fromJson(m)).toList();
-        messagesList.sort((a, b) => b.sentAt.compareTo(a.sentAt));
-        state = state.copyWith(
-            messages: messagesList, chatMsgLoading: false, error: null);
-        markMessagesAsRead(chatId);
-      } else {
-        throw Exception('Failed to decrypt response data');
-      }
-    } catch (error) {
-      log('Error loading messages: $error');
-      state = state.copyWith(
-          chatMsgLoading: false,
-          error: 'Failed to load messages: ${error.toString()}');
-    }
-  }
-
-  Future<void> sendGroupMessage({
+  Future<void> sendMessage({
     required String author,
     required List<dynamic> uploadUrl,
     required String content,
-    required int groupId,
-    MessageType type = MessageType.text,
+    required MessageType type,
     List<PlatformFile>? selectedFiles,
+    int? receiverId,
+    int? groupId,
+    int? chatId,
+    required String currentUserId,
   }) async {
-
     try {
-      await _getCurrentUserId();
+      final bool isGroupChat = groupId != null;
+      final combinedContent = content;
+
+      // Check if we have content to send
+      if (combinedContent.trim().isEmpty && (uploadUrl.isEmpty)) {
+        print('No content to send');
+        return;
+      }
+
+      // Get encryption keys from global state
+      final chatKeysState = ref.read(chatKeysProvider);
+      final senderPublicKey = chatKeysState.senderKeys?.publicKey;
+      final senderPrivateKey = chatKeysState.senderKeys?.privateKey;
+
+      // Create temporary message for instant display
+      final tempMessageId = DateTime.now().millisecondsSinceEpoch;
+
+      // Create initial unencrypted message for immediate display
+      Message tempMessage = Message(
+        messageID: tempMessageId,
+        senderID: int.parse(currentUserId),
+        receiverID: isGroupChat ? int.parse(currentUserId) : receiverId!,
+        content: combinedContent,
+        attachment: '',
+        uploadedUrls: uploadUrl,
+        sentAt: DateTime.now(),
+        isDeleted: false,
+        isPinned: false,
+        isSeenBySender: true,
+        isSeenByReceiver: false,
+        chatID: chatId,
+        type: type,
+        isGroup: isGroupChat,
+        isSending: true, // Flag to show sending state
+      );
+
+      print("Temporary message created: ${tempMessage.toJson()}");
+
+      // 1. FIRST: Add message to local state immediately for instant display
+      _addMessageToState(tempMessage, prepend: true);
+
+      Map<String, dynamic> messageData = {
+        "author": author,
+        "receiverID": isGroupChat ? currentUserId : receiverId,
+        "groupID": isGroupChat ? groupId : '',
+        "SenderID": currentUserId,
+        "Content": combinedContent,
+        "SentAt": DateTime.now().toIso8601String(),
+        "IsDeleted": false,
+        "IsPinned": false,
+        "isGroupChat": isGroupChat,
+        "uploadedUrls": uploadUrl,
+        "error": '',
+        "tempMessageId": tempMessageId, // Send temp ID for confirmation
+        if (!isGroupChat && chatId != null) "chatID": chatId,
+      };
+
+      print("Initial messageData: $messageData");
+
+      // Handle encryption based on message type
+      if (!isGroupChat) {
+        // Individual message encryption
+        if (receiverId == null) {
+          throw ArgumentError('receiverId is required for individual messages');
+        }
+
+        print("receiverId$receiverId");
+
+        final receiverPublicKey = ref.read(chatKeysProvider.notifier).getReceiverPublicKey(receiverId.toString());
+
+        print("receiverPublicKey$receiverPublicKey");
+
+        if (receiverPublicKey == null || senderPublicKey == null || senderPrivateKey == null) {
+          // Update message to show error state
+          _updateMessageStatus(tempMessageId, false, 'Missing encryption keys');
+          throw Exception('Missing encryption keys. Message not sent.');
+        }
+
+        final encryptedMessage = await EncryptServices.encryptMessage(
+          content: combinedContent,
+          publicKeyRef: senderPublicKey,
+          receiverPubKeyRef: receiverPublicKey,
+          senderId: currentUserId,
+          receiverId: receiverId.toString(),
+        );
+
+        print("Encrypted message: $encryptedMessage");
+
+        // Update message data with encrypted content
+        messageData['Content'] = encryptedMessage.encryptedText;
+        messageData['iv'] = encryptedMessage.iv;
+        messageData['encryptedAesKeyForSender'] = encryptedMessage.encryptedAesKeyForSender;
+        messageData['encryptedAesKeyForReceiver'] = encryptedMessage.encryptedAesKeyForReceiver;
+
+      } else {
+        // Group message encryption
+        final groupPublicKeys = <GroupPublicKey>[]; // Get from your group provider
+
+        if (groupPublicKeys.isEmpty) {
+          _updateMessageStatus(tempMessageId, false, 'Missing group public keys');
+          throw Exception('Missing group public keys. Message not sent.');
+        }
+
+        final encryptedMessage = await EncryptServices.encryptMessageGroup(
+          content: combinedContent,
+          publicKeyRef: senderPublicKey.toString(),
+          groupReceivers: groupPublicKeys,
+          groupId: groupId.toString(),
+          senderId: currentUserId,
+        );
+
+        print("Group encrypted message: $encryptedMessage");
+
+        // Update message data with encrypted content
+        messageData['Content'] = encryptedMessage.encryptedText;
+        messageData['iv'] = encryptedMessage.iv;
+        messageData['encryptedAesKeyForSender'] = encryptedMessage.encryptedAesKeyForSender;
+        messageData['groupReceiversKeys'] = encryptedMessage.groupReceivers;
+      }
+
+      // Prepare files if any
       List<Map<String, dynamic>>? formDataList;
       if (selectedFiles != null && selectedFiles.isNotEmpty) {
         formDataList = await _prepareFiles(selectedFiles);
       }
 
-      final messageData = {
-        "author": author,
-        "receiverID": _currentUserId,
-        "groupID": groupId,
-        "SenderID": _currentUserId,
-        "Content": content,
-        "SentAt": DateTime.now().toIso8601String(),
-        "IsDeleted": false,
-        "IsPinned": false,
-        "isGroupChat": true,
-        "uploadedUrls": uploadUrl ?? [],
-        "error": '',
-      };
+      print("Sending encrypted message data: $messageData");
 
+      // Emit via socket
       socket.emit('send_message', messageData);
+
     } catch (error) {
-      log('Send group message error: $error');
+      log('Send message error: $error');
+
+      // Update message to show error state
+      final tempMessageId = DateTime.now().millisecondsSinceEpoch;
+      _updateMessageStatus(tempMessageId, false, error.toString());
+
       state = state.copyWith(
-        error: 'Failed to send group message: ${error.toString()}',
+        error: 'Failed to send message: ${error.toString()}',
       );
       rethrow;
     }
   }
 
+  void _updateMessageStatus(int messageId, bool isSent, String? error) {
+    final updatedMessages = state.messages.map((message) {
+      if (message.messageID == messageId) {
+        return message.copyWith(
+          isSending: !isSent,
+          error: error,
+        );
+      }
+      return message;
+    }).toList();
 
-  typingMessage(){
+    state = state.copyWith(
+      messages: updatedMessages,
+      error: error,
+    );
+  }
 
+  void _handleMessageSentConfirmation(Map<String, dynamic> data) {
+    final serverMessageId = data['MessageID'];
+    final tempMessageId = data['tempMessageId'];
+
+    if (serverMessageId != null && tempMessageId != null) {
+      final updatedMessages = state.messages.map((message) {
+        if (message.messageID == tempMessageId) {
+          return message.copyWith(
+            messageID: serverMessageId,
+            isSending: false,
+            error: null,
+          );
+        }
+        return message;
+      }).toList();
+
+      state = state.copyWith(messages: updatedMessages);
+    }
+  }
+
+  typingMessage() {
     final messageData = {
       "senderID": _currentUserId,
       "senderName": "",
@@ -493,18 +801,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
       "groupID": null,
       "isGroupChat": false,
     };
-   socket.emit('typing',messageData);
-
+    socket.emit('typing', messageData);
   }
 
-
-  stopTypingMessage({ required String author,
-    required List<dynamic> uploadUrl,
-    required String content,
-    required int receiverId,
-    required int chatId
-  }){
-
+  stopTypingMessage(
+      {required String author,
+        required List<dynamic> uploadUrl,
+        required String content,
+        required int receiverId,
+        required int chatId}) {
     final messageData = {
       "senderID": _currentUserId,
       "senderName": author,
@@ -513,53 +818,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
       "groupID": null,
       "isGroupChat": false,
     };
-
-
-  }
-
-
-  Future<void> sendMessage({
-    required String author,
-    required List<dynamic> uploadUrl,
-    required String content,
-    required int receiverId,
-    required int chatId,
-    MessageType type = MessageType.text,
-    List<PlatformFile>? selectedFiles,
-  }) async {
-    try {
-      await _getCurrentUserId();
-
-      List<Map<String, dynamic>>? formDataList;
-      if (selectedFiles != null && selectedFiles.isNotEmpty) {
-        formDataList = await _prepareFiles(selectedFiles);
-      }
-
-      final messageData = {
-        "author": author,
-        "receiverID": receiverId,
-        "groupID": '',
-        "SenderID": _currentUserId,
-        "Content": content,
-        "SentAt": DateTime.now().toIso8601String(),
-        "IsDeleted": false,
-        "IsPinned": false,
-        "isGroupChat": false,
-        "uploadedUrls": uploadUrl,
-        "error": '',
-      };
-
-      print("messageData$messageData");
-
-      socket.emit('send_message', messageData);
-      // _addMessageToState(tempMessage);
-    } catch (error) {
-      log('Send message error: $error');
-      state = state.copyWith(
-        error: 'Failed to send message: ${error.toString()}',
-      );
-      rethrow;
-    }
   }
 
   Future<String> fileToBase64(PlatformFile file) async {
@@ -615,7 +873,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   Message? getLatestMessageForChat(String chatId) {
     final chatMessages =
-        state.messages.where((m) => m.chatID == chatId).toList();
+    state.messages.where((m) => m.chatID == chatId).toList();
     if (chatMessages.isEmpty) return null;
 
     chatMessages.sort((a, b) => b.sentAt.compareTo(a.sentAt));
@@ -625,31 +883,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
   int getUnreadMessageCount(String chatId) {
     return state.messages
         .where((m) =>
-            m.chatID == chatId &&
-            m.receiverID == _currentUserId &&
-            !m.isSeenByReceiver)
+    m.chatID == chatId &&
+        m.receiverID == _currentUserId &&
+        !m.isSeenByReceiver)
         .length;
   }
 
   void markMessagesAsRead(String chatId) {
     final updatedMessages = state.messages.map((message) {
       if (message.chatID == chatId &&
-          message.receiverID == _currentUserId &&
-          !message.isSeenByReceiver) {
-        return Message(
-          messageID: message.messageID,
-          senderID: message.senderID,
-          receiverID: message.receiverID,
-          content: message.content,
-          attachment: message.attachment,
-          uploadedUrls: [],
-          sentAt: message.sentAt,
-          isDeleted: message.isDeleted,
-          isPinned: message.isPinned,
-          isSeenBySender: message.isSeenBySender,
+          message.receiverID == _currentUserId && !message.isSeenByReceiver) {
+        return message.copyWith(
           isSeenByReceiver: true,
-          chatID: message.chatID,
-          type: message.type,
         );
       }
       return message;
@@ -658,7 +903,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(messages: updatedMessages);
 
     final chatIndex =
-        state.chats.indexWhere((chat) => chat.chatID.toString() == chatId);
+    state.chats.indexWhere((chat) => chat.chatID.toString() == chatId);
     if (chatIndex != -1) {
       final updatedChats = List<ChatUser>.from(state.chats);
       final oldChat = updatedChats[chatIndex];
@@ -754,7 +999,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
 
       final decrypted =
-          ApiService().decryptData(encryptedData as String, iv as String);
+      ApiService().decryptData(encryptedData as String, iv as String);
 
       if (decrypted is Map<String, dynamic>) {
         if (decrypted.containsKey('groupList')) {
@@ -777,7 +1022,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         }
       } else if (decrypted is List) {
         final groups =
-            decrypted.map((group) => GroupChat.fromJson(group)).toList();
+        decrypted.map((group) => GroupChat.fromJson(group)).toList();
         state = state.copyWith(
           groups: groups,
           grpListLoading: false,
@@ -856,7 +1101,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       };
 
       final response =
-          await ApiService().post('/chat/groups/addusers', payload);
+      await ApiService().post('/chat/groups/addusers', payload);
       if (response.data == null) {
         throw Exception('No response data received');
       }
@@ -870,7 +1115,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   Future<void> loadGroupMessages(int groupId) async {
     state = state.copyWith(
-        grpMsgLoading: true, currentGroupId: groupId, error: null);
+      grpMsgLoading: true,
+      currentGroupId: groupId,
+      error: null,
+    );
 
     try {
       final response = await ApiService().post('/chat/groups/messagelist', {
@@ -894,33 +1142,202 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final encryptedData = response.data['encryptedData'];
       final iv = response.data['iv'];
 
-      if (encryptedData == null || iv == null) {
-        throw Exception('Missing encrypted data or IV');
+      // Handle both encrypted and unencrypted responses
+      dynamic decryptedData;
+      if (encryptedData != null && iv != null) {
+        decryptedData = ApiService().decryptData(encryptedData, iv);
+      } else {
+        // If no encryption, use the raw data
+        decryptedData = response.data;
       }
 
-      final res = ApiService().decryptData(encryptedData, iv);
+      if (decryptedData != null) {
+        List<dynamic> messagesData;
 
-      if (res != null) {
-        final messagesList =
-        (res as List).map((m) => GroupMessage.fromJson(m)).toList();
-        messagesList.sort((a, b) => a.sentAt.compareTo(b.sentAt));
+        // Extract the messages list from different possible response structures
+        if (decryptedData is Map && decryptedData.containsKey('messageList')) {
+          messagesData = decryptedData['messageList'] as List;
+        } else if (decryptedData is Map && decryptedData.containsKey('messages')) {
+          messagesData = decryptedData['messages'] as List;
+        } else if (decryptedData is List) {
+          messagesData = decryptedData;
+        } else {
+          throw Exception('Unexpected response format: ${decryptedData.runtimeType}');
+        }
+
+        // Safe conversion of messages data to GroupMessage objects
+        List<GroupMessage> messagesList = messagesData.map((m) {
+          try {
+            Map<String, dynamic> messageJson;
+
+            if (m is Map<String, dynamic>) {
+              // If it's already Map<String, dynamic>, use it directly
+              messageJson = m;
+            } else if (m is Map) {
+              // If it's a Map but not specifically Map<String, dynamic>, convert it
+              messageJson = Map<String, dynamic>.from(m);
+            } else if (m is String) {
+              // If it's a string, try to parse it as JSON
+              try {
+                messageJson = Map<String, dynamic>.from(jsonDecode(m));
+              } catch (e) {
+                throw Exception('Failed to parse message string as JSON: $e');
+              }
+            } else {
+              throw Exception('Unexpected message data type: ${m.runtimeType}');
+            }
+
+            return GroupMessage.fromJson(messageJson);
+          } catch (e, stackTrace) {
+            log('Error converting message data to GroupMessage: $e');
+            log('Problematic data: $m');
+            log('Stack trace: $stackTrace');
+
+            // Return a default error message instead of crashing
+            return GroupMessage(
+              messageID: DateTime.now().millisecondsSinceEpoch,
+              senderID: 0,
+              content: 'Error loading message: ${e.toString()}',
+              sentAt: DateTime.now(),
+              isDeleted: false,
+              isPinned: false,
+              isSeenBySender: true,
+              isSeenByReceiver: false,
+              groupID: groupId,
+              isSeenAll: 0,
+              author: 'System',
+            );
+          }
+        }).toList();
+
+        final chatKeysState = ref.read(chatKeysProvider);
+        final senderPrivateKey = chatKeysState.senderKeys?.privateKey;
+        final currentUserId = state.currentUserId;
+
+        // Decrypt each group message
+        List<GroupMessage> decryptedMessages = await Future.wait(
+          messagesList.map((groupMessage) async {
+            try {
+              // Check if message needs decryption
+              final isEncrypted = groupMessage.iv != null &&
+                  (groupMessage.encryptedAesKeyForSender != null ||
+                      groupMessage.groupReceivers != null);
+
+              if (!isEncrypted) {
+                print('Group message ${groupMessage.messageID} is not encrypted');
+                return groupMessage;
+              }
+
+              if (senderPrivateKey == null) {
+                print('Missing private key for decryption');
+                return groupMessage.copyWith(
+                  content: '[Encrypted - No Key]',
+                );
+              }
+
+              if (currentUserId == null) {
+                print('Missing current user ID');
+                return groupMessage.copyWith(
+                  content: '[Encrypted - No User ID]',
+                );
+              }
+
+              print('Decrypting group message ${groupMessage.messageID}');
+              print('IV: ${groupMessage.iv}');
+              print('Encrypted AES Key: ${groupMessage.encryptedAesKeyForSender}');
+              print('Group Receivers: ${groupMessage.groupReceivers}');
+
+              // Create a proper Message object for decryption
+              final messageForDecryption = Message(
+                messageID: groupMessage.messageID,
+                senderID: groupMessage.senderID,
+                receiverID: 0,
+                content: groupMessage.content,
+                attachment: groupMessage.attachment ?? '',
+                uploadedUrls: _safeConvertUploadedUrls(groupMessage.uploadedUrls),
+                sentAt: groupMessage.sentAt,
+                isDeleted: groupMessage.isDeleted,
+                isPinned: groupMessage.isPinned,
+                isSeenBySender: groupMessage.isSeenBySender,
+                isSeenByReceiver: groupMessage.isSeenByReceiver,
+                chatID: groupMessage.chatID,
+                type: MessageType.text,
+                isGroup: true,
+                iv: groupMessage.iv,
+                encryptedAesKeyForSender: groupMessage.encryptedAesKeyForSender,
+                groupReceivers: groupMessage.groupReceivers?.map((e) => Map<String, String>.from(e))
+                    .toList(),
+              );
+
+              final decryptedContent = await EncryptServices.decryptMessageGroup(
+                messageData: messageForDecryption,
+                privateKeyRef: senderPrivateKey,
+                currentUserId: currentUserId,
+              );
+
+              if (decryptedContent['text'] != null) {
+                print('Successfully decrypted group message: ${decryptedContent['text']}');
+                return groupMessage.copyWith(
+                  content: decryptedContent['text'],
+                );
+              } else {
+                print('Decryption returned null text');
+                return groupMessage.copyWith(
+                  content: '[Decryption Failed]',
+                );
+              }
+            } catch (e, stackTrace) {
+              log('Error decrypting group message ${groupMessage.messageID}: $e');
+              log('Stack trace: $stackTrace');
+
+              // Return the message with error indicator but keep original data
+              return groupMessage.copyWith(
+                content: '[Decryption Error: ${e.toString()}]',
+              );
+            }
+          }),
+        );
+
+        // Sort messages chronologically (oldest first)
+        decryptedMessages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
 
         state = state.copyWith(
-            groupMessages: messagesList, isLoading: false, error: null);
-      } else {
-        throw Exception('Failed to decrypt response data');
-      }
-    } catch (error) {
-      log('Error loading group messages: $error');
-      state = state.copyWith(
-          groupMessages: [],
+          groupMessages: decryptedMessages,
           grpMsgLoading: false,
-          error: 'Failed to load group messages: ${error.toString()}');
-    } finally {
+          error: null,
+        );
+
+        print('Successfully loaded ${decryptedMessages.length} group messages');
+
+      } else {
+        throw Exception('Failed to process response data');
+      }
+    } catch (error, stackTrace) {
+      log('Error loading group messages: $error');
+      log('Stack trace: $stackTrace');
+
       state = state.copyWith(
+        groupMessages: [],
         grpMsgLoading: false,
+        error: 'Failed to load group messages: ${error.toString()}',
       );
     }
+  }
+
+// Helper method to safely convert uploadedUrls
+  List<dynamic> _safeConvertUploadedUrls(dynamic uploadedUrls) {
+    if (uploadedUrls == null) return [];
+    if (uploadedUrls is List) return uploadedUrls;
+    if (uploadedUrls is String) {
+      try {
+        final parsed = jsonDecode(uploadedUrls);
+        if (parsed is List) return parsed;
+        if (parsed is String) return [parsed];
+      } catch (e) {
+        return [uploadedUrls];
+      }
+    }
+    return [];
   }
 
   Future<void> loadGroupMembers(int groupId) async {
@@ -951,10 +1368,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         throw Exception('Missing encrypted data or IV');
       }
       final decrypted =
-          ApiService().decryptData(encryptedData as String, iv as String);
+      ApiService().decryptData(encryptedData as String, iv as String);
       if (decrypted is List) {
         final membersList =
-            decrypted.map((m) => GroupMember.fromJson(m)).toList();
+        decrypted.map((m) => GroupMember.fromJson(m)).toList();
         state = state.copyWith(
           groupMembers: membersList,
           isLoading: false,
@@ -964,7 +1381,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           decrypted.containsKey('members')) {
         final members = decrypted['members'] as List<dynamic>;
         final membersList =
-            members.map((m) => GroupMember.fromJson(m)).toList();
+        members.map((m) => GroupMember.fromJson(m)).toList();
         state = state.copyWith(
           groupMembers: membersList,
           isLoading: false,
@@ -1002,26 +1419,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void _updateMessageDeliveryStatus(dynamic messageId,
       {bool isDelivered = false, bool isRead = false}) {
     final messageIndex =
-        state.messages.indexWhere((m) => m.messageID == messageId);
+    state.messages.indexWhere((m) => m.messageID == messageId);
     if (messageIndex != -1) {
       final updatedMessages = List<Message>.from(state.messages);
       final oldMessage = updatedMessages[messageIndex];
 
-      updatedMessages[messageIndex] = Message(
-        messageID: oldMessage.messageID,
-        senderID: oldMessage.senderID,
-        receiverID: oldMessage.receiverID,
-        content: oldMessage.content,
-        attachment: oldMessage.attachment,
-        uploadedUrls: [],
-        sentAt: oldMessage.sentAt,
-        isDeleted: oldMessage.isDeleted,
-        isPinned: oldMessage.isPinned,
-        isSeenBySender:
-            isDelivered || isRead ? true : oldMessage.isSeenBySender,
+      updatedMessages[messageIndex] = oldMessage.copyWith(
+        isSeenBySender: isDelivered || isRead ? true : oldMessage.isSeenBySender,
         isSeenByReceiver: isRead ? true : oldMessage.isSeenByReceiver,
-        chatID: oldMessage.chatID,
-        type: oldMessage.type,
       );
 
       state = state.copyWith(messages: updatedMessages);
@@ -1099,7 +1504,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
             textColor: Colors.white,
             fontSize: 16.0,
           );
-
 
           return imageUrl.toString();
         } else {
