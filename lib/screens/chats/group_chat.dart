@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer';
 import 'package:ebv/models/chat_model.dart';
 import 'package:ebv/models/group_model.dart';
 import 'package:flutter/material.dart';
@@ -39,11 +40,28 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   final List<PlatformFile> _selectedFiles = [];
   bool _isMounted = false;
   bool _showSendButton = false;
+  bool _initialized = false;
+
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isMounted && !_initialized) {
+      _initialized = true;
+      _initializeChatKeys();
+      Future.microtask(() async {
+        final chatNotifier = ref.read(chatProvider.notifier);
+        await chatNotifier.loadGroupMessages(widget.group.groupID);
+        await chatNotifier.loadGroupMembers(widget.group.groupID);
+        _scrollToBottom();
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _isMounted = true;
-    _scrollToBottom();
 
     _messageController.addListener(() {
       if (_isMounted) {
@@ -51,48 +69,92 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           _showSendButton = _messageController.text.trim().isNotEmpty;
         });
       }
-      _initializeChatKeys();
-    });
-
-    Future.microtask(() async {
-      final chatNotifier = ref.read(chatProvider.notifier);
-      await chatNotifier.loadGroupMessages(widget.group.groupID);
-      await chatNotifier.loadGroupMembers(widget.group.groupID);
-
     });
   }
 
 
   Future<void> _initializeChatKeys() async {
-    final chatKeys = ref.read(chatKeysProvider.notifier);
-    await chatKeys.verifyAuthKeys();
+    if (_disposed) return;
 
-    if (ref.read(chatKeysProvider).senderKeys == null) {
-      await chatKeys.getSenderChatKeys(); // Replace with actual user ID
+    try {
+      final chatKeysNotifier = ref.read(chatKeysProvider.notifier);
+      final chatKeysState = ref.read(chatKeysProvider);
+
+      // Add delay to prevent race conditions
+      await Future.delayed(Duration(milliseconds: 100));
+
+      if (_disposed) return;
+
+      // Verify auth keys
+      await chatKeysNotifier.verifyAuthKeys();
+      log('✅ Auth keys verified');
+
+      if (_disposed) return;
+
+      // Get sender keys
+      if (chatKeysState.senderKeys == null) {
+        log('📤 Getting sender chat keys...');
+        await chatKeysNotifier.getSenderChatKeys();
+        log('✅ Sender chat keys retrieved');
+      } else {
+        log('📤 Sender keys already available');
+      }
+
+    } catch (e) {
+      if (!_disposed) {
+        log('❌ Error initializing chat keys: $e');
+      }
     }
-
-    await chatKeys.getReceiverChatKeys();
   }
+
+  bool _disposed = false;
 
   @override
   void dispose() {
+    _disposed = true;
     _isMounted = false;
     _messageController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
+
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isMounted || !_scrollController.hasClients) return;
+
+      try {
+        final position = _scrollController.position;
+
+        // For chat apps, usually we want to scroll to the newest message
+        // Try maxScrollExtent first (for normal ListView)
+        // If that's at 0, try minScrollExtent (for reverse: true ListView)
+        double targetPosition;
+
+        if (position.maxScrollExtent > 0) {
+          targetPosition = position.maxScrollExtent;
+        } else if (position.minScrollExtent < 0) {
+          targetPosition = position.minScrollExtent;
+        } else {
+          targetPosition = 0;
+        }
+
+        // Check if we're already at the target position
+        final currentPosition = position.pixels;
+        final distanceToTarget = (targetPosition - currentPosition).abs();
+
+        if (distanceToTarget > 1.0) {
+          _scrollController.animateTo(
+            targetPosition,
+            duration: Duration(milliseconds: 600),
+            curve: Curves.easeOut,
+          );
+        }
+      } catch (e) {
+        log('Error scrolling to bottom: $e');
+      }
+    });
   }
+
 
   void _sendMessage() async{
     final message = _messageController.text.trim();
@@ -107,10 +169,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     final chatState = ref.watch(chatProvider);
 
     ref.read(chatProvider.notifier).sendMessage(
-      currentUserId: chatState.currentUserId.toString(),
+      currentUserId: chatState.currentUserId!,
       type: MessageType.text,
       chatId: 0,
-      author: widget.group.groupName,
+      author: chatState.currentUserName,
       uploadUrl: urls,
       selectedFiles: _selectedFiles,
       groupId: widget.group.groupID,
@@ -1324,7 +1386,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         children: [
           Container(
             padding: const EdgeInsets.only(
-              top: 60,
+              top: 30,
               bottom: 16,
               left: 16,
               right: 16,
@@ -1379,15 +1441,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: Center(
-                      child: Text(
-                        widget.group.groupName.isNotEmpty
-                            ? widget.group.groupName[0].toUpperCase()
-                            : 'U',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      child: CircleAvatar(
+                        radius: 44,
+                        backgroundImage: widget.group.profilePicture.toString().isNotEmpty&&widget.group.profilePicture!=null
+                            ? NetworkImage(widget.group.profilePicture.toString())
+                            : AssetImage('assets/images/profile.png') as ImageProvider,
                       ),
                     ),
                   ),
@@ -1418,7 +1476,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     child: const Icon(
                       Iconsax.call,
                       size: 20,
-                      color: Colors.black87,
+                      color: Colors.green,
                     ),
                   ),
                   onPressed: () {},
@@ -1433,7 +1491,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     child: const Icon(
                       Iconsax.video,
                       size: 20,
-                      color: Colors.black87,
+                      color: Colors.indigo,
                     ),
                   ),
                   onPressed: () {},
@@ -1478,10 +1536,23 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             ),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Iconsax.add, color: Colors.deepPurple),
-                  onPressed: _showMediaOptions,
+                GestureDetector(
+                  onTap: _showMediaOptions,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                    const Icon(
+                      Iconsax.add,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
+                SizedBox(width: 8,),
                 Expanded(
                   child: TextField(
                     controller: _messageController,
@@ -1502,12 +1573,19 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: _showSendButton ? Colors.deepPurple : Colors.grey,
-                  child: Center(
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _showSendButton ? _sendMessage : null,
+                // Send Button
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 48,
+                  height: 48,
+                  child: FloatingActionButton(
+                    onPressed:  _sendMessage,
+                    backgroundColor:  Colors.deepPurple,
+                    elevation: 0,
+                    child: const Icon(
+                      Iconsax.send_2,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
                 ),

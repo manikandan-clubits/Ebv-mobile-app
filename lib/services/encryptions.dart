@@ -107,7 +107,7 @@ class EncryptServices {
     required String content,
     required String publicKeyRef,
     required List<GroupPublicKey> groupReceivers,
-    required String senderId,
+    required int senderId,
     required String groupId,
   }) async {
     try {
@@ -144,7 +144,7 @@ class EncryptServices {
           final encForReceiver = receiverEncrypter.encrypt(aesStr);
 
           validReceivers.add({
-            'receiverId': receiver.userId,
+            'receiverId': receiver.userId.toString(),
             'encryptedAesKey': encForReceiver.base64,
           });
         } catch (e) {
@@ -184,19 +184,24 @@ class EncryptServices {
       // Find the encrypted key for the current user
       if (messageData.groupReceivers != null) {
         final receiverKeyObj = messageData.groupReceivers!.firstWhere(
-          (keyObj) =>
-              keyObj['receiverId'].toString() == currentUserId.toString(),
+              (keyObj) {
+            // Convert both to strings for comparison
+            final objReceiverId = keyObj['receiverId']?.toString() ?? '';
+            final currentUserIdStr = currentUserId.toString();
+            return objReceiverId == currentUserIdStr;
+          },
           orElse: () => {},
         );
+
         if (receiverKeyObj.isNotEmpty) {
-          encKeyB64 = receiverKeyObj['encryptedAesKey'];
+          encKeyB64 = receiverKeyObj['encryptedAesKey']?.toString();
         }
       }
 
       // Also check if I am the sender, then I should use encryptedAesKeyForSender
       if (encKeyB64 == null &&
           messageData.senderID.toString() == currentUserId.toString()) {
-        encKeyB64 = messageData.encryptedAesKeyForSender;
+        encKeyB64 = messageData.encryptedAesKeyForSender?.toString();
       }
 
       if (encKeyB64 == null) {
@@ -228,7 +233,7 @@ class EncryptServices {
       );
 
       final encryptedContent =
-          encrypt.Encrypted.fromBase64(messageData.content);
+      encrypt.Encrypted.fromBase64(messageData.content);
       final decryptedContent = aesEncrypter.decrypt(encryptedContent, iv: iv);
 
       return {'text': decryptedContent};

@@ -70,6 +70,7 @@ class ChatKeysNotifier extends StateNotifier<ChatKeysState> {
 
   // Get sender chat keys
   Future<void> getSenderChatKeys() async {
+    print("CallgetSenderChatKeys");
     try {
       state = state.copyWith(isLoading: true, error: null);
       final response =
@@ -85,12 +86,15 @@ class ChatKeysNotifier extends StateNotifier<ChatKeysState> {
       final result = ApiService().decryptData(encryptedData, iv);
       final currentUser = result["keys"]?['currentUser'];
 
-      if (currentUser?['publicKey'] != null &&
-          currentUser?['privateKey'] != null) {
+      print("getSenderChatKeys$result");
+
+      if (currentUser?['publicKey'] != null && currentUser?['privateKey'] != null) {
         final senderKeys = ChatKeys(
           publicKey: currentUser['publicKey'],
           privateKey: currentUser['privateKey'],
         );
+
+        print("senderKeys${senderKeys.privateKey}");
 
         state = state.copyWith(
           senderKeys: senderKeys,

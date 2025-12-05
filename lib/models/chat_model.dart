@@ -52,8 +52,8 @@ class EncryptedMessage {
   final String iv;
   final String encryptedAesKeyForSender;
   final String encryptedAesKeyForReceiver;
-  final String senderId;
-  final String receiverId;
+  final int senderId;
+  final int receiverId;
 
   EncryptedMessage({
     required this.encryptedText,
@@ -82,7 +82,7 @@ class GroupEncryptedMessage {
 }
 
 class GroupPublicKey {
-  final String userId;
+  final int userId;
   final String publicKey;
 
   GroupPublicKey({
@@ -90,8 +90,6 @@ class GroupPublicKey {
     required this.publicKey,
   });
 }
-
-
 
 
 class Message {
@@ -102,7 +100,7 @@ class Message {
   final String attachment;
   final List<dynamic> uploadedUrls;
   final DateTime sentAt;
-  final bool isDeleted;
+  final bool? isDeleted;
   final bool isPinned;
   final bool isGroup;
   final bool isSeenBySender;
@@ -116,6 +114,11 @@ class Message {
   final List<Map<String, String>>? groupReceivers;
   final bool isSending;
   final String? error;
+  final bool isEdited;
+
+  final DateTime? editedAt;
+  final DateTime? deletedAt;
+  final bool deleteForEveryone;
 
   Message({
     this.messageID,
@@ -138,6 +141,10 @@ class Message {
     this.groupReceivers,
     this.isSending = false,
     this.error,
+    this.isEdited = false,
+    this.editedAt,
+    this.deletedAt,
+    this.deleteForEveryone = false,
   });
 
 
@@ -150,8 +157,13 @@ class Message {
     List<Map<String, String>>? groupReceivers,
     bool? isSending,
     String? error,
+    bool? isDeleted,
     bool? isSeenBySender,
-    bool? isSeenByReceiver
+    bool? isSeenByReceiver,
+    bool? isEdited,
+    DateTime? editedAt,
+    DateTime? deletedAt,
+    bool? deleteForEveryone,
 
   }) {
     return Message(
@@ -175,6 +187,10 @@ class Message {
       groupReceivers: groupReceivers ?? this.groupReceivers,
       isSending: isSending ?? this.isSending,
       error: error ?? this.error,
+      isEdited: isEdited ?? this.isEdited,
+      editedAt: editedAt ?? this.editedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      deleteForEveryone: deleteForEveryone ?? this.deleteForEveryone,
     );
   }
 
@@ -204,6 +220,10 @@ class Message {
       groupReceivers: json['groupReceivers'] != null
           ? List<Map<String, String>>.from(json['groupReceivers'])
           : null,
+      isEdited: json['IsEdited'] ?? json['isEdited'] ?? false,
+      editedAt: json['EditedAt'] != null ? DateTime.parse(json['EditedAt']) : null,
+      deletedAt: json['DeletedAt'] != null ? DateTime.parse(json['DeletedAt']) : null,
+      deleteForEveryone: json['DeleteForEveryone'] ?? json['deleteForEveryone'] ?? false,
 
 
     );
@@ -407,8 +427,7 @@ class ChatUser {
     String? profilePicture,
     bool? status,
     DateTime? lastSeen,
-    dynamic isMaster,
-    String? adminID,
+    bool? isMaster,
     bool? isActive,
     String? lastMessage,
     DateTime? lastMessageTime,
@@ -417,7 +436,8 @@ class ChatUser {
     int? chatID,
     int? receiverID,
     int? messageID,
-    dynamic unreadCount,
+    int? unreadCount,
+    DateTime? lastMessageSeenAt,
   }) {
     return ChatUser(
       userID: userID ?? this.userID,
@@ -429,7 +449,6 @@ class ChatUser {
       status: status ?? this.status,
       lastSeen: lastSeen ?? this.lastSeen,
       isMaster: isMaster ?? this.isMaster,
-      adminID: adminID ?? this.adminID,
       isActive: isActive ?? this.isActive,
       lastMessage: lastMessage ?? this.lastMessage,
       lastMessageTime: lastMessageTime ?? this.lastMessageTime,

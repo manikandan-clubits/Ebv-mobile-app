@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class GroupChat {
   final int groupID;
   final String name;
@@ -56,7 +58,8 @@ class GroupMessage {
   final int senderID;
   final int? receiverID;
   final String? attachment;
-  final dynamic uploadedUrls; // Changed to dynamic to handle both String and List
+  final dynamic
+      uploadedUrls; // Changed to dynamic to handle both String and List
   final String content;
   final DateTime sentAt;
   final bool isDeleted;
@@ -135,39 +138,97 @@ class GroupMessage {
       senderName: senderName ?? this.senderName,
       seenBy: seenBy ?? this.seenBy,
       iv: iv ?? this.iv,
-      encryptedAesKeyForSender: encryptedAesKeyForSender ?? this.encryptedAesKeyForSender,
+      encryptedAesKeyForSender:
+          encryptedAesKeyForSender ?? this.encryptedAesKeyForSender,
       groupReceivers: groupReceivers ?? this.groupReceivers,
       author: author ?? this.author,
     );
   }
 
   factory GroupMessage.fromJson(Map<String, dynamic> json) {
+    // Helper function to safely convert uploadedUrls
+    dynamic _parseUploadedUrls(dynamic value) {
+      if (value == null) return [];
+      if (value is List) return value;
+      if (value is String) {
+        // If it's a string, try to parse it as JSON
+        try {
+          final parsed = jsonDecode(value);
+          return parsed is List ? parsed : [value];
+        } catch (e) {
+          // If parsing fails, return it as a single-item list
+          return [value];
+        }
+      }
+      return [];
+    }
+
+    // Helper function to safely convert seenBy
+    List<dynamic>? _parseSeenBy(dynamic value) {
+      if (value == null) return null;
+      if (value is List) return value;
+      if (value is String) {
+        // If it's a string, try to parse it as JSON
+        try {
+          final parsed = jsonDecode(value);
+          return parsed is List ? parsed : [value];
+        } catch (e) {
+          // If parsing fails, return it as a single-item list
+          return [value];
+        }
+      }
+      return null;
+    }
+
+    // Helper function to safely convert groupReceivers
+    List<Map<String, String>>? _parseGroupReceivers(dynamic value) {
+      if (value == null) return null;
+      if (value is List) {
+        try {
+          return value.map((e) => Map<String, String>.from(e)).toList();
+        } catch (e) {
+          return null;
+        }
+      }
+      if (value is String) {
+        // If it's a string, try to parse it as JSON
+        try {
+          final parsed = jsonDecode(value);
+          if (parsed is List) {
+            return parsed.map((e) => Map<String, String>.from(e)).toList();
+          }
+        } catch (e) {
+          return null;
+        }
+      }
+      return null;
+    }
+
     return GroupMessage(
       messageID: json['MessageID'] ?? json['messageID'] ?? 0,
       chatID: json['ChatID'] ?? json['chatID'],
       senderID: json['SenderID'] ?? json['senderID'] ?? 0,
       receiverID: json['ReceiverID'] ?? json['receiverID'],
       attachment: json['attachment'],
-      uploadedUrls: json['uploadedUrls'] ?? [],
+      uploadedUrls: _parseUploadedUrls(json['uploadedUrls']),
       content: json['Content'] ?? json['content'] ?? '',
       sentAt: json['SentAt'] != null
           ? DateTime.parse(json['SentAt'])
           : json['sentAt'] != null
-          ? DateTime.parse(json['sentAt'])
-          : DateTime.now(),
+              ? DateTime.parse(json['sentAt'])
+              : DateTime.now(),
       isDeleted: json['IsDeleted'] ?? json['isDeleted'] ?? false,
       isPinned: json['IsPinned'] ?? json['isPinned'] ?? false,
       isSeenBySender: json['IsSeenBySender'] ?? json['isSeenBySender'] ?? true,
-      isSeenByReceiver: json['IsSeenByReceiver'] ?? json['isSeenByReceiver'] ?? false,
+      isSeenByReceiver:
+          json['IsSeenByReceiver'] ?? json['isSeenByReceiver'] ?? false,
       groupID: json['groupID'] ?? json['GroupID'] ?? 0,
       isSeenAll: json['isSeenAll'] ?? json['IsSeenAll'] ?? 0,
       senderName: json['senderName'] ?? json['SenderName'],
-      seenBy: json['seenBy'],
+      seenBy: _parseSeenBy(json['seenBy']),
       iv: json['iv'],
       encryptedAesKeyForSender: json['encryptedAesKeyForSender'],
-      groupReceivers: json['groupReceiversKeys'] != null
-          ? (json['groupReceiversKeys'] as List).map((e) => Map<String, String>.from(e)).toList()
-          : null,
+      groupReceivers: _parseGroupReceivers(json['groupReceiversKeys']),
       author: json['author'] ?? json['Author'] ?? 'Unknown',
     );
   }

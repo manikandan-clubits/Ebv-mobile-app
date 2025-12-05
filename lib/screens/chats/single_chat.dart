@@ -23,6 +23,9 @@ class _ChatSelectionScreenState extends ConsumerState<SingleChat> {
     super.initState();
     _isMounted = true;
     ref.read(chatProvider.notifier).initializeSocket();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatProvider.notifier).loadSingleChatUsers();
+    });
   }
 
   Future<void> _loadChatsSafely() async {
@@ -217,6 +220,8 @@ class _ChatSelectionScreenState extends ConsumerState<SingleChat> {
               ),
             ),
           ),
+
+
 
           // Chat List
           Expanded(
