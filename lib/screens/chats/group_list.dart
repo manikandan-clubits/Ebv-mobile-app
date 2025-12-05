@@ -80,13 +80,11 @@ class _GroupListScreenState extends ConsumerState<GroupListScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: Center(
-                    child: Text(
-                      group.groupName.substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 20,
-                      ),
+                    child:CircleAvatar(
+                      radius: 44,
+                      backgroundImage: group.profilePicture.toString().isNotEmpty&&group.profilePicture!=null
+                          ? NetworkImage(group.profilePicture.toString())
+                          : AssetImage('assets/images/profile.png') as ImageProvider,
                     ),
                   ),
                 ),
@@ -114,15 +112,15 @@ class _GroupListScreenState extends ConsumerState<GroupListScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        group.lastMessage ?? 'No messages yet',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      // Text(
+                      //   group.lastMessage ?? 'No messages yet',
+                      //   style: TextStyle(
+                      //     fontSize: 14,
+                      //     color: Colors.grey.shade600,
+                      //   ),
+                      //   maxLines: 1,
+                      //   overflow: TextOverflow.ellipsis,
+                      // ),
                       const SizedBox(height: 4),
                       Text(
                         _formatTime(group.lastMessageTime),

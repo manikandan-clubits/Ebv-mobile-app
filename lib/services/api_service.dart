@@ -17,9 +17,10 @@ class ApiService {
 
   // Configuration
   static const String _baseUrl = "https://dev-ebv-backend-ffafgsdhg8chbvcy.southindia-01.azurewebsites.net";
+  // static const String _baseUrl = "http://192.168.0.182:8585";
   static const String _refreshTokenUrl = "/user/verify/token";
   static const Duration _timeout = Duration(seconds: 120);
-  static const int _maxRetries = 1;
+  static const int _maxRetries = 3;
 
   static const String _secretKeyBase64 = "VSZKsJvYFlufUGRcg8szIVBJ3tLf0eh1V2Xq4LuWy5U=";
   final encrypt.Key _encryptionKey = encrypt.Key(base64.decode(_secretKeyBase64));

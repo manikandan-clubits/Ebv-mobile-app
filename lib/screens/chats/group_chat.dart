@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:developer';
+import 'package:ebv/models/chat_model.dart';
 import 'package:ebv/models/group_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import '../../provider/chat_encrpt_provider.dart';
 import '../../provider/chat_provider.dart';
 import 'group_details.dart';
 import 'package:image_picker/image_picker.dart';
@@ -37,11 +40,28 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   final List<PlatformFile> _selectedFiles = [];
   bool _isMounted = false;
   bool _showSendButton = false;
+  bool _initialized = false;
+
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_isMounted && !_initialized) {
+      _initialized = true;
+      _initializeChatKeys();
+      Future.microtask(() async {
+        final chatNotifier = ref.read(chatProvider.notifier);
+        await chatNotifier.loadGroupMessages(widget.group.groupID);
+        await chatNotifier.loadGroupMembers(widget.group.groupID);
+        _scrollToBottom();
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _isMounted = true;
-    _scrollToBottom();
 
     _messageController.addListener(() {
       if (_isMounted) {
@@ -50,34 +70,91 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         });
       }
     });
-
-    Future.microtask(() async {
-      final chatNotifier = ref.read(chatProvider.notifier);
-      await chatNotifier.loadGroupMessages(widget.group.groupID);
-      await chatNotifier.loadGroupMembers(widget.group.groupID);
-
-    });
   }
+
+
+  Future<void> _initializeChatKeys() async {
+    if (_disposed) return;
+
+    try {
+      final chatKeysNotifier = ref.read(chatKeysProvider.notifier);
+      final chatKeysState = ref.read(chatKeysProvider);
+
+      // Add delay to prevent race conditions
+      await Future.delayed(Duration(milliseconds: 100));
+
+      if (_disposed) return;
+
+      // Verify auth keys
+      await chatKeysNotifier.verifyAuthKeys();
+      log('✅ Auth keys verified');
+
+      if (_disposed) return;
+
+      // Get sender keys
+      if (chatKeysState.senderKeys == null) {
+        log('📤 Getting sender chat keys...');
+        await chatKeysNotifier.getSenderChatKeys();
+        log('✅ Sender chat keys retrieved');
+      } else {
+        log('📤 Sender keys already available');
+      }
+
+    } catch (e) {
+      if (!_disposed) {
+        log('❌ Error initializing chat keys: $e');
+      }
+    }
+  }
+
+  bool _disposed = false;
 
   @override
   void dispose() {
+    _disposed = true;
     _isMounted = false;
     _messageController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
+
   void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isMounted || !_scrollController.hasClients) return;
+
+      try {
+        final position = _scrollController.position;
+
+        // For chat apps, usually we want to scroll to the newest message
+        // Try maxScrollExtent first (for normal ListView)
+        // If that's at 0, try minScrollExtent (for reverse: true ListView)
+        double targetPosition;
+
+        if (position.maxScrollExtent > 0) {
+          targetPosition = position.maxScrollExtent;
+        } else if (position.minScrollExtent < 0) {
+          targetPosition = position.minScrollExtent;
+        } else {
+          targetPosition = 0;
+        }
+
+        // Check if we're already at the target position
+        final currentPosition = position.pixels;
+        final distanceToTarget = (targetPosition - currentPosition).abs();
+
+        if (distanceToTarget > 1.0) {
+          _scrollController.animateTo(
+            targetPosition,
+            duration: Duration(milliseconds: 600),
+            curve: Curves.easeOut,
+          );
+        }
+      } catch (e) {
+        log('Error scrolling to bottom: $e');
+      }
+    });
   }
+
 
   void _sendMessage() async{
     final message = _messageController.text.trim();
@@ -89,10 +166,13 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       urls.add(fileUrl);
     }
 
-    final chatNotifier = ref.read(chatProvider.notifier);
+    final chatState = ref.watch(chatProvider);
 
-    chatNotifier.sendGroupMessage(
-      author: widget.group.groupName,
+    ref.read(chatProvider.notifier).sendMessage(
+      currentUserId: chatState.currentUserId!,
+      type: MessageType.text,
+      chatId: 0,
+      author: chatState.currentUserName,
       uploadUrl: urls,
       selectedFiles: _selectedFiles,
       groupId: widget.group.groupID,
@@ -129,21 +209,50 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
   Widget _buildMessageBubble(GroupMessage message, bool isMe) {
     List<String>? getAttachments(GroupMessage msg) {
-      if (msg.uploadedUrls.isNotEmpty) {
-        return List<String>.from(msg.uploadedUrls);
-      }
-
-      if (msg.attachment.isNotEmpty) {
-        try {
-          final parsed = jsonDecode(msg.attachment);
-          if (parsed is List) {
-            return List<String>.from(parsed);
-          } else if (parsed is String && parsed.isNotEmpty) {
-            return [parsed];
+      try {
+        // Handle uploadedUrls - it might be a String, List, or null
+        if (msg.uploadedUrls != null) {
+          if (msg.uploadedUrls is String) {
+            // If it's a string, try to parse it as JSON
+            final String urlString = msg.uploadedUrls as String;
+            if (urlString.trim().isNotEmpty) {
+              try {
+                final parsed = jsonDecode(urlString);
+                if (parsed is List) {
+                  return List<String>.from(parsed.map((e) => e.toString()));
+                } else if (parsed is String) {
+                  return [parsed];
+                }
+              } catch (e) {
+                // If JSON parsing fails, treat it as a single URL string
+                return [urlString];
+              }
+            }
+          } else if (msg.uploadedUrls is List) {
+            // If it's already a list, convert to List<String>
+            final List<dynamic> urlList = msg.uploadedUrls as List<dynamic>;
+            if (urlList.isNotEmpty) {
+              return urlList.map((e) => e.toString()).toList();
+            }
           }
-        } catch (e) {
-          return [msg.attachment];
         }
+
+        // Handle attachment field
+        if (msg.attachment != null && msg.attachment!.isNotEmpty) {
+          final attachment = msg.attachment!;
+          try {
+            final parsed = jsonDecode(attachment);
+            if (parsed is List) {
+              return List<String>.from(parsed.map((e) => e.toString()));
+            } else if (parsed is String) {
+              return [parsed];
+            }
+          } catch (e) {
+            return [attachment];
+          }
+        }
+      } catch (e) {
+        print('Error parsing attachments: $e');
       }
 
       return null;
@@ -155,7 +264,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     final authorInitial = author.isNotEmpty ? author.substring(0, 1).toUpperCase() : '?';
     final content = message.content ?? '';
     final hasContent = content.isNotEmpty;
-    final sentAt = message.sentAt ?? DateTime.now();
+    final sentAt = message.sentAt;
     final formattedTime = _formatMessageTime(sentAt);
 
     return Container(
@@ -497,23 +606,6 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       ),
     );
   }
-
-  void _replyToMessage(GroupMessage message) {
-    // Implement reply functionality
-    print('Reply to message: ${message}');
-  }
-
-  void _copyMessageText(GroupMessage message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Message copied to clipboard')),
-    );
-  }
-
-  void _reportMessage(GroupMessage message) {
-    // Implement report message functionality
-    print('Report message: ${message}');
-  }
-
 // Make sure your _formatMessageTime method can handle DateTime
   String _formatMessageTime(DateTime dateTime) {
     // Add null safety to your time formatting method
@@ -1502,7 +1594,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         children: [
           Container(
             padding: const EdgeInsets.only(
-              top: 25,
+              top: 30,
               bottom: 16,
               left: 16,
               right: 16,
@@ -1557,15 +1649,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: Center(
-                      child: Text(
-                        widget.group.groupName.isNotEmpty
-                            ? widget.group.groupName[0].toUpperCase()
-                            : 'U',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
+                      child: CircleAvatar(
+                        radius: 44,
+                        backgroundImage: widget.group.profilePicture.toString().isNotEmpty&&widget.group.profilePicture!=null
+                            ? NetworkImage(widget.group.profilePicture.toString())
+                            : AssetImage('assets/images/profile.png') as ImageProvider,
                       ),
                     ),
                   ),
@@ -1596,7 +1684,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     child: const Icon(
                       Iconsax.call,
                       size: 20,
-                      color: Colors.black87,
+                      color: Colors.green,
                     ),
                   ),
                   onPressed: () {},
@@ -1611,7 +1699,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     child: const Icon(
                       Iconsax.video,
                       size: 20,
-                      color: Colors.black87,
+                      color: Colors.indigo,
                     ),
                   ),
                   onPressed: () {},
@@ -1656,10 +1744,23 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             ),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Iconsax.add, color: Colors.deepPurple),
-                  onPressed: _showMediaOptions,
+                GestureDetector(
+                  onTap: _showMediaOptions,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      shape: BoxShape.circle,
+                    ),
+                    child:
+                    const Icon(
+                      Iconsax.add,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
+                SizedBox(width: 8,),
                 Expanded(
                   child: TextField(
                     controller: _messageController,
@@ -1680,12 +1781,19 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: _showSendButton ? Colors.deepPurple : Colors.grey,
-                  child: Center(
-                    child: IconButton(
-                      icon: const Icon(Icons.send, color: Colors.white),
-                      onPressed: _showSendButton ? _sendMessage : null,
+                // Send Button
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 48,
+                  height: 48,
+                  child: FloatingActionButton(
+                    onPressed:  _sendMessage,
+                    backgroundColor:  Colors.deepPurple,
+                    elevation: 0,
+                    child: const Icon(
+                      Iconsax.send_2,
+                      color: Colors.white,
+                      size: 20,
                     ),
                   ),
                 ),

@@ -56,7 +56,6 @@ class ChatListItem extends ConsumerWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: () {
-            if (chat.chatID != null) {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -65,10 +64,10 @@ class ChatListItem extends ConsumerWidget {
                     chatName:
                     chat.firstName.isNotEmpty ? chat.firstName : 'Unknown',
                     chat: chat,
+
                   ),
                 ),
               );
-            }
           },
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -88,16 +87,14 @@ class ChatListItem extends ConsumerWidget {
                         ),
                         shape: BoxShape.circle,
                       ),
-                      child: Center(
-                        child: Text(
-                          chat.firstName.isNotEmpty
-                              ? chat.firstName[0].toUpperCase()
-                              : 'U',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
+                      child: CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Colors.white,
+                        child: CircleAvatar(
+                          radius: 44,
+                          backgroundImage: chat.profilePicture.toString().isNotEmpty
+                              ? NetworkImage(chat.profilePicture.toString())
+                              : AssetImage('assets/images/profile.png') as ImageProvider,
                         ),
                       ),
                     ),
@@ -132,7 +129,7 @@ class ChatListItem extends ConsumerWidget {
                           Expanded(
                             child: Text(
                               chat.firstName.isNotEmpty
-                                  ? '${chat.firstName} ${chat.lastName}'
+                                  ? '${chat.firstName}${chat.userID}'
                                   : 'Unknown User',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,

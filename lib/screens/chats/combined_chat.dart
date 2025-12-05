@@ -23,37 +23,29 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _isMounted = true;
-    ref.read(chatProvider.notifier).initializeSocket();
-    _tabController.addListener(_handleTabChange);
-    WidgetsBinding.instance.addObserver(this);
-
-    print("callEverySeconds");
-    chatNotifier = ref.read(chatProvider.notifier);
-    chatNotifier.checkUserActive(true);
-
+  _tabController.addListener(_handleTabChange);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(chatProvider.notifier).initializeSocket();
+      // _initializeChatKeys();
       if (_isMounted) {
         _loadChatsSafely();
       }
     });
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    switch (state) {
-      case AppLifecycleState.resumed:
-        chatNotifier.checkUserActive(true);
-        break;
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
-      case AppLifecycleState.inactive:
-        chatNotifier.checkUserActive(false);
-        break;
-      case AppLifecycleState.hidden:
-    }
-  }
+  // Future<void> _initializeChatKeys() async {
+  //   final chatKeys = ref.read(chatKeysProvider.notifier);
+  //
+  //   // Get sender keys if not already available
+  //   if (ref.read(chatKeysProvider).senderKeys == null) {
+  //     await chatKeys.getSenderChatKeys(userId: 'current_user_id'); // Replace with actual user ID
+  //   }
+  //
+  //   // Get receiver keys
+  //   await chatKeys.getReceiverChatKeys(recvId: widget.receiverId);
+  // }
 
-  void _handleTabChange() {
+   void _handleTabChange() {
     if (!_tabController.indexIsChanging && _isMounted) {
       if (_tabController.index == 0) {
         _loadChatsSafely();
