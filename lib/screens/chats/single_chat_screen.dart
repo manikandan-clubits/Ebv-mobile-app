@@ -493,7 +493,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_selectedFiles.isEmpty) return const SizedBox();
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         border: Border.all(color: Colors.grey.shade200, width: 1),
@@ -510,6 +510,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Row(
             children: [
               Container(
@@ -603,7 +604,99 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final file = _selectedFiles[index];
-                return _buildFilePreview(file, index);
+                final fileExtension = _getFileExtension(file.name);
+                final isImage = _isImageFile(file.name);
+                final fileSize = _formatFileSize(file.size);
+
+                return Container(
+                  margin: EdgeInsets.only(right: index == _selectedFiles.length - 1 ? 0 : 8),
+                  width: 100,
+                  child: Stack(
+                    children: [
+                      // File Card
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: chatState.isUpload ? Colors.blue.shade300 : Colors.grey.shade300,
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // File Icon
+                            Center(
+                              child: Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: _getFileColor(fileExtension),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Center(
+                                  child: isImage
+                                      ? const Icon(
+                                    Icons.image_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  )
+                                      : Icon(
+                                    _getFileIcon(fileExtension),
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 2),
+                            Center(
+                              child: Text(
+                                fileSize,
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Remove Button
+                      if (!chatState.isUpload)
+                        Positioned(
+                          top: -4,
+                          right: -4,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedFiles.removeAt(index);
+                                _messageController.clear();
+                              });
+                            },
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
               },
             ),
           ),
@@ -1082,7 +1175,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       color: Colors.green,
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: () {
+                    showAsBottomSheet(context);
+                  },
                 ),
                 IconButton(
                   icon: Container(

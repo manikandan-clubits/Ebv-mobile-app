@@ -237,6 +237,33 @@ class ChatNotifier extends StateNotifier<ChatState> {
       log("Socket event received:$event");
       log("Event data: $data");
 
+    socket.on('editMessage', (data) {
+      try {
+        final messageData = data is String ? jsonDecode(data) : data;
+        final editedMessage = GroupMessage.fromJson(messageData);
+
+        _handleMessageEdit(editedMessage);
+      } catch (e) {
+        print('Error handling editMessage socket event: $e');
+      }
+    });
+
+    socket.on('deleteMessage', (data) {
+      try {
+        final messageData = data is String ? jsonDecode(data) : data;
+        final deletedMessageId = messageData['messageId'] as int?;
+
+        if (deletedMessageId != null) {
+          _handleMessageDelete(deletedMessageId);
+        }
+      } catch (e) {
+        print('Error handling deleteMessage socket event: $e');
+      }
+    });
+
+
+    socket.on('message_read', (data) {
+      _updateMessageDeliveryStatus(data['messageId'], isRead: true);
     });
 
     socket.on('typing', (data) {
@@ -443,26 +470,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     return GroupMessage(
       messageID: data['MessageID'] ?? data['messageID'] ?? 0,
-      chatID: data['ChatID'] ??
-          data['chatID'] ??
-          data['groupID'] ??
-          data['GroupID'] ??
-          0,
+      chatID: data['ChatID'] ?? data['chatID'] ?? data['groupID'] ?? data['GroupID'] ?? 0,
       senderID: data['SenderID'] ?? data['senderID'] ?? 0,
       receiverID: data['ReceiverID'] ?? data['receiverID'],
       attachment: data['attachment'] ?? '',
       uploadedUrls: data['uploadedUrls'] ?? [],
       content: data['Content'] ?? data['content'] ?? '',
-      sentAt: data['SentAt'] != null
-          ? DateTime.parse(data['SentAt'])
-          : data['sentAt'] != null
-              ? DateTime.parse(data['sentAt'])
-              : DateTime.now(),
+      sentAt: data['SentAt'] != null ? DateTime.parse(data['SentAt']) : data['sentAt'] != null ? DateTime.parse(data['sentAt']) : DateTime.now(),
       isDeleted: data['IsDeleted'] ?? data['isDeleted'] ?? false,
       isPinned: data['IsPinned'] ?? data['isPinned'] ?? false,
       isSeenBySender: data['IsSeenBySender'] ?? data['isSeenBySender'] ?? true,
-      isSeenByReceiver:
-          data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
+      isSeenByReceiver: data['IsSeenByReceiver'] ?? data['isSeenByReceiver'] ?? false,
       groupID: data['groupID'] ?? data['GroupID'] ?? 0,
       isSeenAll: data['isSeenAll'] ?? data['IsSeenAll'] ?? 0,
       author: data['author'] ?? data['Author'] ?? 'Unknown',
@@ -942,23 +960,28 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return;
     }
 
-    final existingMessageIndex =
-        state.messages.indexWhere((m) => m.messageID == message.messageID);
+  void _addMessageToState(Message message, {bool prepend = true}) {
+    final existingMessageIndex = state.messages.indexWhere((m) => m.messageID == message.messageID);
+    final updatedMessages = List<Message>.from(state.messages);
 
     if (existingMessageIndex != -1) {
-      final updatedMessages = List<Message>.from(state.messages);
       updatedMessages[existingMessageIndex] = message;
-      state = state.copyWith(messages: updatedMessages);
     } else {
-      final updatedMessages = List<Message>.from(state.messages);
-      if (prepend) {
-        updatedMessages.insert(0, message);
-      } else {
-        updatedMessages.add(message);
+      // Binary search for optimal insertion in descending order
+      int low = 0;
+      int high = updatedMessages.length;
+
+      while (low < high) {
+        int mid = (low + high) ~/ 2;
+        if (message.sentAt.isAfter(updatedMessages[mid].sentAt)) {
+          high = mid;
+        } else {
+          low = mid + 1;
+        }
       }
-      updatedMessages.sort((a, b) => b.sentAt.compareTo(a.sentAt));
-      state = state.copyWith(messages: updatedMessages);
+      updatedMessages.insert(low, message);
     }
+    state = state.copyWith(messages: updatedMessages);
   }
 
   void _addGroupMessageToState(GroupMessage message) {
@@ -966,15 +989,27 @@ class ChatNotifier extends StateNotifier<ChatState> {
         state.groupMessages.indexWhere((m) => m.messageID == message.messageID);
 
     if (existingIndex != -1) {
-      final updatedMessages = List<GroupMessage>.from(state.groupMessages);
+      // Update existing message
       updatedMessages[existingIndex] = message;
       updatedMessages.sort((a, b) => a.sentAt.compareTo(b.sentAt));
       state = state.copyWith(groupMessages: updatedMessages);
     } else {
-      final updatedMessages = List<GroupMessage>.from(state.groupMessages);
-      _insertMessageChronological(updatedMessages, message);
-      state = state.copyWith(groupMessages: updatedMessages);
+      // Binary search to insert in descending order (newest first)
+      int low = 0;
+      int high = updatedMessages.length;
+
+      while (low < high) {
+        int mid = (low + high) ~/ 2;
+        if (message.sentAt.isAfter(updatedMessages[mid].sentAt)) {
+          low = mid + 1; // Go to right half for descending order
+        } else {
+          high = mid;    // Go to left half
+        }
+      }
+      updatedMessages.insert(low, message);
     }
+
+    state = state.copyWith(groupMessages: updatedMessages);
   }
 
   MessageType _stringToMessageType(String type) {
@@ -997,16 +1032,143 @@ class ChatNotifier extends StateNotifier<ChatState> {
     int low = 0;
     int high = messages.length;
 
-    while (low < high) {
-      final mid = (low + high) ~/ 2;
-      if (newMessage.sentAt.compareTo(messages[mid].sentAt) < 0) {
-        high = mid;
-      } else {
-        low = mid + 1;
-      }
-    }
 
-    messages.insert(low, newMessage);
+// Fixed send message methods
+  Future<void> sendMessage({
+    required String author,
+    required List<dynamic> uploadUrl,
+    required String content,
+    required int receiverId,
+    required int chatId,
+    MessageType type = MessageType.text,
+    List<PlatformFile>? selectedFiles,
+  }) async {
+    try {
+      await _getCurrentUserId();
+
+      List<Map<String, dynamic>>? formDataList;
+      if (selectedFiles != null && selectedFiles.isNotEmpty) {
+        formDataList = await _prepareFiles(selectedFiles);
+      }
+
+      // Generate a temporary message ID for optimistic UI
+      final tempMessageId = DateTime.now().millisecondsSinceEpoch;
+
+      final messageData = {
+        "author": author,
+        "receiverID": receiverId,
+        "groupID": '',
+        "SenderID": _currentUserId,
+        "Content": content,
+        "SentAt": DateTime.now().toIso8601String(),
+        "IsDeleted": false,
+        "IsPinned": false,
+        "isGroupChat": false,
+        "uploadedUrls": uploadUrl,
+        "error": '',
+        // Add temporary ID for state management
+        "messageID": tempMessageId,
+        "chatID": chatId,
+      };
+
+      print("messageData$messageData");
+
+      // Create temporary message for optimistic UI
+      final tempMessage = Message(
+        messageID: tempMessageId,
+        chatID: chatId,
+        senderID: state.currentUserId!,
+        receiverID: receiverId,
+        attachment: '',
+        content: content,
+        sentAt: DateTime.now(),
+        isDeleted: false,
+        isPinned: false,
+        uploadedUrls: uploadUrl.cast<String>(),
+      );
+
+      // Add to state immediately for optimistic UI
+      _addMessageToState(tempMessage);
+
+      // Emit socket event
+      socket.emit('send_message', messageData);
+
+    } catch (error) {
+      log('Send message error: $error');
+      state = state.copyWith(
+        error: 'Failed to send message: ${error.toString()}',
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> sendGroupMessage({
+    required String author,
+    required List<dynamic> uploadUrl,
+    required String content,
+    required int groupId,
+    MessageType type = MessageType.text,
+    List<PlatformFile>? selectedFiles,
+  }) async {
+    try {
+      await _getCurrentUserId();
+
+      List<Map<String, dynamic>>? formDataList;
+      if (selectedFiles != null && selectedFiles.isNotEmpty) {
+        formDataList = await _prepareFiles(selectedFiles);
+      }
+
+      // Generate a temporary message ID for optimistic UI
+      final tempMessageId = DateTime.now().millisecondsSinceEpoch;
+
+      final messageData = {
+        "author": author,
+        "receiverID": _currentUserId,
+        "groupID": groupId,
+        "SenderID": _currentUserId,
+        "Content": content,
+        "SentAt": DateTime.now().toIso8601String(),
+        "IsDeleted": false,
+        "IsPinned": false,
+        "isGroupChat": true,
+        "uploadedUrls": uploadUrl ?? [],
+        "error": '',
+        // Add temporary ID for state management
+        "messageID": tempMessageId,
+      };
+
+      // Create temporary message for optimistic UI
+      final tempMessage = GroupMessage(
+        messageID: tempMessageId,
+        groupID: groupId,
+        senderID: state.currentUserId!,
+        content: content,
+        sentAt: DateTime.now(),
+        isDeleted: false,
+        isPinned: false,
+        uploadedUrls: (uploadUrl ?? []).cast<String>(),
+        author: author,
+        attachment: '',
+        isSeenAll: 0,
+        isSeenByReceiver: false,
+        isSeenBySender: false,
+        chatID: 0,
+        receiverID: _currentUserId,
+      );
+
+      // Add to state immediately for optimistic UI
+      _addGroupMessageToState(tempMessage);
+
+      // Emit socket event
+      socket.emit('send_message', messageData);
+
+    } catch (error) {
+      log('Send group message error: $error');
+      state = state.copyWith(
+        error: 'Failed to send group message: ${error.toString()}',
+      );
+      rethrow;
+    }
   }
 
   Future<List<GroupPublicKey>> _getGroupPublicKeys(int groupId) async {
@@ -1094,7 +1256,33 @@ class ChatNotifier extends StateNotifier<ChatState> {
         throw Exception('Missing encrypted data or IV');
       }
 
-      final res = ApiService().decryptData(encryptedData, iv);
+      final decrypted = ApiService().decryptData(encryptedData, iv);
+
+      if (decrypted != null) {
+        // Handle different response formats
+        List<Message> messagesList = [];
+
+        if (decrypted is List) {
+          // Direct list of messages
+          messagesList = (decrypted as List).map((m) => Message.fromJson(m)).toList();
+        } else if (decrypted is Map<String, dynamic>) {
+          // Check for common response structures
+          if (decrypted['data'] is List) {
+            // Response with 'data' key containing the list
+            messagesList = (decrypted['data'] as List).map((m) => Message.fromJson(m)).toList();
+          } else if (decrypted['messages'] is List) {
+            // Response with 'messages' key containing the list
+            messagesList = (decrypted['messages'] as List).map((m) => Message.fromJson(m)).toList();
+          } else if (decrypted['result'] is List) {
+            // Response with 'result' key containing the list
+            messagesList = (decrypted['result'] as List).map((m) => Message.fromJson(m)).toList();
+          } else {
+            // Try to parse the entire map as a single message or look for other structures
+            throw Exception('Unexpected response format: ${decrypted.keys}');
+          }
+        } else {
+          throw Exception('Unexpected decrypted data type: ${decrypted.runtimeType}');
+        }
 
       if (res != null) {
         List<dynamic> usersData;
@@ -1658,8 +1846,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       if (decrypted is Map<String, dynamic> && decrypted.containsKey('group')) {
         final newGroup = GroupChat.fromJson(decrypted['group']);
-        final updatedGroups = List<GroupChat>.from(state.groups)
-          ..insert(0, newGroup);
+        final updatedGroups = List<GroupChat>.from(state.groups)..insert(0, newGroup);
         state = state.copyWith(groups: updatedGroups, isCreatingGroup: false);
       } else {
         await loadGroups();
@@ -1674,6 +1861,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
       rethrow;
     }
   }
+
+
+
 
   Future<void> addGrpMember({
     required int GroupID,

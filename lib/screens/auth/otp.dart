@@ -13,7 +13,7 @@ class OtpScreen extends ConsumerStatefulWidget {
 }
 
 class _OtpScreenState extends ConsumerState<OtpScreen> {
-  late SigninProvider signInNotifier;
+  late SignInNotifier signInNotifier;
   late TextEditingController otp;
 
 
@@ -24,7 +24,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
     Future.microtask(() {
       signInNotifier = ref.read(signInProvider.notifier);
-
     });
     super.initState();
   }
@@ -106,7 +105,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     if(otp.text.isNotEmpty) {
-                      if (state.otpType == MethodType.forgotPassword) {
+                      print(state.otpType);
+                      if (state.otpType == "forgotpassword") {
                         FocusScope.of(context).unfocus();
                         signInNotifier.forgotVerifyOtp(context, otp.text);
                       } else {
@@ -117,7 +117,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   },
                   style: ButtonStyle(
                     backgroundColor:
-                        MaterialStateProperty.all<Color>(Colors.grey),
+                        MaterialStateProperty.all<Color>(Color(0xFF8548D0)),
                     shape: MaterialStateProperty.all<RoundedRectangleBorder>(
                       RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(5),

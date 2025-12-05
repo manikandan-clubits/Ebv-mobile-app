@@ -1,6 +1,8 @@
+import 'package:ebv/provider/app_data_provider.dart';
 import 'package:ebv/provider/auth_provider.dart';
 import 'package:ebv/screens/home/home.dart';
 import 'package:ebv/screens/auth/email_login.dart';
+import 'package:ebv/screens/network_check_service.dart';
 import 'package:ebv/screens/splash_screen.dart';
 import 'package:ebv/services/notification_service.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -8,6 +10,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
+
 
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -34,6 +37,7 @@ void main() async {
 }
 
 class MyApp extends ConsumerStatefulWidget {
+
   const MyApp({Key? key}) : super(key: key);
 
   @override
@@ -53,6 +57,9 @@ class _MyAppState extends ConsumerState<MyApp> {
     try {
       await NotificationService().setupFirebaseMessaging();
       await ref.read(authStateProvider.notifier).initializeAuth(context);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(appStateNotifierProvider.notifier).initializeAppData();
+      });
 
     } catch (error) {
       print(error);
@@ -91,8 +98,9 @@ class _MyAppState extends ConsumerState<MyApp> {
     }
 
     if (authState.userInfo == null ) {
-      return const SignIn();
+
+      return NetworkManager(child: const SignIn());
     }
-    return const Home();
+    return  const Home();
   }
 }

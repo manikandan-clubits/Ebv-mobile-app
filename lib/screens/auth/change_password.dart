@@ -3,15 +3,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../provider/signIn_provider.dart';
 
-class changepassword extends ConsumerStatefulWidget {
-  const changepassword({super.key});
+class ChangePassword extends ConsumerStatefulWidget {
+  const ChangePassword({super.key});
 
   @override
-  _changepasswordState createState() => _changepasswordState();
+  _ChangePasswordState createState() => _ChangePasswordState();
 }
 
-class _changepasswordState extends ConsumerState<changepassword> {
-  late SigninProvider signInNotifier;
+class _ChangePasswordState extends ConsumerState<ChangePassword> {
+  late SignInNotifier signInNotifier;
   late TextEditingController changePassword;
 
   @override
@@ -20,6 +20,7 @@ class _changepasswordState extends ConsumerState<changepassword> {
     changePassword = TextEditingController();
 
     Future.microtask(() {
+      ref.read(signInProvider.notifier).readUser();
       signInNotifier = ref.read(signInProvider.notifier);
     });
     super.initState();
@@ -43,7 +44,7 @@ class _changepasswordState extends ConsumerState<changepassword> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset(
-                'assets/sms.png',
+                'assets/images/sms.png',
                 height: 56,
                 width: 56,
               ),
@@ -54,8 +55,8 @@ class _changepasswordState extends ConsumerState<changepassword> {
                       fontSize: 20,
                       fontWeight: FontWeight.bold)),
               const SizedBox(height: 15),
-              const Text(
-                'Mobile/Email',
+               Text(
+                '${state.userInfo?.email.toString()}',
                 textAlign: TextAlign.start,
                 style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
               ),
@@ -83,12 +84,13 @@ class _changepasswordState extends ConsumerState<changepassword> {
               Center(
                   child: SizedBox(
                 width: double.infinity,
-                height: 40,
                 child: ElevatedButton(
                   onPressed: () {
                     signInNotifier.updatePassword(context, changePassword.text);
                   },
                   style: ButtonStyle(
+                    backgroundColor:
+                    MaterialStateProperty.all<Color>(Color(0xFF8548D0)),
                     shape: MaterialStateProperty.all<RoundedRectangleBorder>(
                       RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(5),
@@ -118,10 +120,13 @@ class _changepasswordState extends ConsumerState<changepassword> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+
                     ],
                   ),
                 ),
               )),
+              // Text("userInfo${state.userInfo?.email.toString()}")
+
             ],
           ),
         ),

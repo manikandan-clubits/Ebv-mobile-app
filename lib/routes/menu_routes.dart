@@ -23,12 +23,15 @@ class MenuRoutes {
       case 'EBV':
         Navigator.push(context, MaterialPageRoute(builder: (context)=> PatientsEligibility()));
         break;
+
         case 'Appointment':
         Navigator.push(context, MaterialPageRoute(builder: (context)=> Appointments()));
         break;
+
         case 'Patient':
         Navigator.push(context, MaterialPageRoute(builder: (context)=> PmsPatients()));
         break;
+
       case 'VOIP':
         Navigator.push(context, MaterialPageRoute(builder: (context)=> DialPadScreen()));
         break;

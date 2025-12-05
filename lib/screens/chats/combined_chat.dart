@@ -14,10 +14,10 @@ class CombinedChatScreen extends ConsumerStatefulWidget {
 }
 
 class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   bool _isMounted = false;
-
+  late final ChatNotifier chatNotifier;
   @override
   void initState() {
     super.initState();
@@ -55,7 +55,7 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     }
   }
 
-   Future<void> _loadGroupsSafely() async {
+  Future<void> _loadGroupsSafely() async {
     try {
       await ref.read(chatProvider.notifier).loadGroups();
     } catch (e) {
@@ -74,16 +74,20 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
   @override
   void dispose() {
     _isMounted = false;
-     _tabController.removeListener(_handleTabChange);
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
+    chatNotifier.checkUserActive(false);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.read(chatProvider.notifier).checkUserActive(true);
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight + kTextTabBarHeight),
+        preferredSize:
+            const Size.fromHeight(kToolbarHeight + kTextTabBarHeight),
         child: Container(
           decoration: const BoxDecoration(
             gradient: const LinearGradient(
@@ -137,7 +141,3 @@ class _CombinedChatScreenState extends ConsumerState<CombinedChatScreen>
     );
   }
 }
-
-
-
-

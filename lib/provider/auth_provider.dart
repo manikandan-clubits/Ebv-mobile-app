@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 import 'package:ebv/screens/auth/email_login.dart';
 import 'package:flutter/material.dart';
@@ -54,6 +55,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
 
       if (isTokenValid) {
         // Token is valid, user stays on current screen
+        log("Token is valid, user stays on current screen");
         state = state.copyWith(
             isLoading: false,
             isTokenVerified: true,
@@ -61,11 +63,13 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         );
       } else {
         // Token is invalid or expired, redirect to sign in
+        log("Token is invalid or expired, redirect to sign in");
         state = state.copyWith(
             isLoading: false,
             isTokenVerified: false,
             userInfo: null
         );
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context)=> SignIn()));
 
       }
     } catch (e) {
@@ -175,10 +179,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       }
 
       final bool isValid = result['message']?.toString().toLowerCase() == 'valid token';
-      final int? statusCode = result['statusCode'];
 
       if (isValid) {
-        _showSuccessToast('Token Verified Successfully');
         state = state.copyWith(
             isLoading: false,
             isTokenVerified: true
@@ -194,7 +196,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         return false;
       }
     } catch (e) {
-      await _clearInvalidAuthData();
+      // await _clearInvalidAuthData();
       state = state.copyWith(
           isLoading: false,
           isTokenVerified: false,
@@ -210,7 +212,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       await StorageServices.delete("userInfo");
       await StorageServices.delete('accessToken');
     } catch (e) {
-      print('Error clearing auth data: $e');
+      log('Error clearing auth data: $e');
     }
   }
 
@@ -222,16 +224,6 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-    );
-  }
-
-  void _showSuccessToast(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_SHORT,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: Colors.green,
-      textColor: Colors.white,
     );
   }
 

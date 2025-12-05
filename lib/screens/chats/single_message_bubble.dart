@@ -633,15 +633,15 @@ class _MessageBubbleState extends State<MessageBubble> {
     return GestureDetector(
       onTap: isLoading ? null : () => _showImagePreview(imageUrl),
       child: Container(
-        width: 220,
-        height: 160,
-        margin: const EdgeInsets.only(bottom: 8),
+        width: 200,
+        height: 150,
+        margin: EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           child: Stack(
             children: [
               if (isLoading)
@@ -674,13 +674,12 @@ class _MessageBubbleState extends State<MessageBubble> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.photo, size: 12, color: Colors.white),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'Photo',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 10,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -703,13 +702,13 @@ class _MessageBubbleState extends State<MessageBubble> {
     return GestureDetector(
       onTap: isLoading ? null : () => viewFiles(fileUrl),
       child: Container(
-        width: 220,
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        width: 200,
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: widget.isMe ? Colors.deepPurple.shade50 : Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
         ),
         child: Row(
           children: [
@@ -745,7 +744,6 @@ class _MessageBubbleState extends State<MessageBubble> {
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
-                      color: widget.isMe ? Colors.deepPurple : Colors.black87,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

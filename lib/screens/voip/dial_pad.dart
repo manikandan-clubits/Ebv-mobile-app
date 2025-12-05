@@ -34,27 +34,17 @@ class _DialPadScreenState extends State<DialPadScreen> {
 
   Future<void> makeCall() async {
     if(enteredNumber.length>6 && enteredNumber.isNotEmpty){
-      _showCustomDialog(context,enteredNumber);
+      // _showCustomDialog(context,enteredNumber);
     }else{
       Fluttertoast.showToast(
         msg: "Enter Your valid Number",
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.SNACKBAR,
         backgroundColor: Colors.grey[300],
-        textColor: Colors.grey,
+        textColor: Colors.black,
         fontSize: 14.0,
       );
     }
-    // if (enteredNumber.isEmpty) return;
-    //
-    // final url = Uri.parse('tel:$enteredNumber');
-    // if (await canLaunchUrl(url)) {
-    //   await launchUrl(url);
-    // } else {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     const SnackBar(content: Text('Could not launch dialer')),
-    //   );
-    // }
   }
 
 
@@ -158,7 +148,7 @@ class _DialPadScreenState extends State<DialPadScreen> {
                     style: const TextStyle(
                       fontSize: 25,
                       fontWeight: FontWeight.bold,
-                      color: Colors.grey,
+                      color: Colors.black,
                     ),
                   ),
                 ),

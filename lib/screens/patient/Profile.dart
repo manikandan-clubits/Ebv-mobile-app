@@ -6,6 +6,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import '../../provider/language_provider.dart';
 import '../../provider/myprofile_provider.dart';
 import '../../widgets/dialogs.dart';
+import '../auth/change_password.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   @override
@@ -230,9 +231,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
                         ProfileMenuItem(
                           icon: Icons.notifications_active_rounded,
-                          title: 'Notifications',
-                          subtitle: 'Manage your notification preferences',
-                          onTap: () {},
+                          title: 'ChangePassword',
+                          subtitle: 'Manage your password',
+                          onTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (context)=>ChangePassword()));
+                          },
                           showArrow: true,
                           // iconColor: Colors.orange.shade600,
                           // iconBackground: Colors.orange.shade50,

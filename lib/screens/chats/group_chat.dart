@@ -274,24 +274,29 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
-            Container(
-              width: 36,
-              height: 36,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF6a11cb), Color(0xFF2575fc)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            GestureDetector(
+              onLongPress: () {
+                // _showMessageOptions(context, message, isMe);
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF6a11cb), Color(0xFF2575fc)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
                 ),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  authorInitial,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                child: Center(
+                  child: Text(
+                    authorInitial,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -299,101 +304,304 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Column(
-              crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-              children: [
-                if (!isMe)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4, left: 12),
-                    child: Text(
-                      author,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isMe ? const Color(0xFF6a11cb) : Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
-                      bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (hasContent)
-                        Text(
-                          content,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black87,
-                            fontSize: 16,
-                            height: 1.4,
-                          ),
+            child: GestureDetector(
+              onLongPress: () {
+                isMe ?_showMessageOptions(context, message, isMe) : Container();
+              },
+              child: Column(
+                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  if (!isMe)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4, left: 12),
+                      child: Text(
+                        author,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey.shade700,
                         ),
-                      if (hasAttachments) ...[
-                        if (hasContent) const SizedBox(height: 12),
-                        Column(
-                          children: attachments!.map((url) {
-                            if (isImageUrl(url)) {
-                              return _buildImageAttachment(url);
-                            } else {
-                              return _buildFileAttachment(url);
-                            }
-                          }).toList(),
+                      ),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isMe ? const Color(0xFF6a11cb) : Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(20),
+                        topRight: const Radius.circular(20),
+                        bottomLeft: isMe ? const Radius.circular(20) : const Radius.circular(4),
+                        bottomRight: isMe ? const Radius.circular(4) : const Radius.circular(20),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, left: 12, right: 12),
-                  child: Text(
-                    formattedTime,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey.shade500,
-                      fontWeight: FontWeight.w500,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasContent)
+                          Text(
+                            content,
+                            style: TextStyle(
+                              color: isMe ? Colors.white : Colors.black87,
+                              fontSize: 16,
+                              height: 1.4,
+                            ),
+                          ),
+                        if (hasAttachments) ...[
+                          if (hasContent) const SizedBox(height: 12),
+                          Column(
+                            children: attachments!.map((url) {
+                              if (isImageUrl(url)) {
+                                return _buildImageAttachment(url);
+                              } else {
+                                return _buildFileAttachment(url);
+                              }
+                            }).toList(),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, left: 12, right: 12),
+                    child: Text(
+                      formattedTime,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey.shade500,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           if (isMe) ...[
             const SizedBox(width: 8),
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  'Me',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+            GestureDetector(
+              onLongPress: () {
+                _showMessageOptions(context, message, isMe);
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Text(
+                    'Me',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+// Add this method to show message options
+  void _showMessageOptions(BuildContext context, GroupMessage message, bool isMe) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          margin: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Message Preview
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(16),
+                      topRight: Radius.circular(16),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isMe ? const Color(0xFF6a11cb) : const Color(0xFF2575fc),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            isMe ? 'Me' : (message.author?.substring(0, 1).toUpperCase() ?? '?'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isMe ? 'You' : (message.author ?? 'Unknown User'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              message.content ?? '',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Options List
+                if (isMe) ...[
+                  _buildOptionItem(
+                    icon: Icons.edit,
+                    title: 'Edit Message',
+                    color: Colors.blue.shade700,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _editMessage(message);
+                    },
+                  ),
+                  _buildOptionItem(
+                    icon: Icons.delete,
+                    title: 'Delete Message',
+                    color: Colors.red.shade600,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _deleteMessage(message);
+                    },
+                  ),
+                ],
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+// Helper method to build option items
+  Widget _buildOptionItem({
+    required IconData icon,
+    required String title,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
+// Add these handler methods
+  void _editMessage(GroupMessage message) {
+    print('Edit message: ${message}');
+
+    // Example: Show dialog for editing
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Message'),
+        content: TextField(
+          controller: TextEditingController(text: message.content),
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Type your message...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(chatProvider.notifier).editMessage(message.messageID, message.content);
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteMessage(GroupMessage message) {
+    print('Delete message: ${message}');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              // Delete message logic here
+              Navigator.pop(context);
+            },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
         ],
       ),
     );
@@ -1397,7 +1605,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                 BoxShadow(
                   color: Colors.black.withOpacity(0.05),
                   blurRadius: 8,
-                  offset: const Offset(0, 2),
+                  offset: const Offset(0, 1),
                 ),
               ],
             ),
